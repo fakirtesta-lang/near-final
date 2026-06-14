@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -53,13 +54,13 @@ h1{font-size:17px;font-weight:700;margin-bottom:3px}
 </div>
 
 <div class="mode-row">
-  <div class="mode-btn active" id="modeQ" onclick="setMode('quick')">
-    <span class="icon">⚡</span>Rápido
-    <span class="tfs">1m · 5m · 15m · 1h · 4h</span>
+  <div class="mode-btn active" id="modeQ" onclick="setMode('intraday')">
+    <span class="icon">⚡</span>Intraday
+    <span class="tfs">1m · 5m · 15m · 30m · 1h</span>
   </div>
-  <div class="mode-btn full" id="modeF" onclick="setMode('full')">
-    <span class="icon">📊</span>Completo
-    <span class="tfs">+ 30m · 2h · 6h · 12h · 1d · 1w · 1M</span>
+  <div class="mode-btn full" id="modeF" onclick="setMode('context')">
+    <span class="icon">🔭</span>Contexto
+    <span class="tfs">4h · 1d · 1w</span>
   </div>
 </div>
 
@@ -82,24 +83,20 @@ h1{font-size:17px;font-weight:700;margin-bottom:3px}
 const BY  = 'https://api.bybit.com/v5/market';
 const SYM = 'NEARUSDT';
 
-const TFS_QUICK = [
+const TFS_INTRADAY = [
   {tf:'1',   lim:100, name:'1 MINUTO'},
   {tf:'5',   lim:100, name:'5 MINUTOS'},
   {tf:'15',  lim:100, name:'15 MINUTOS'},
-  {tf:'60',  lim:100, name:'1 HORA'},
-  {tf:'240', lim:80,  name:'4 HORAS'},
-];
-const TFS_EXTRA = [
   {tf:'30',  lim:100, name:'30 MINUTOS'},
-  {tf:'120', lim:80,  name:'2 HORAS'},
-  {tf:'360', lim:80,  name:'6 HORAS'},
-  {tf:'720', lim:60,  name:'12 HORAS'},
+  {tf:'60',  lim:100, name:'1 HORA'},
+];
+const TFS_CONTEXT = [
+  {tf:'240', lim:80,  name:'4 HORAS'},
   {tf:'D',   lim:60,  name:'1 DÍA'},
   {tf:'W',   lim:40,  name:'1 SEMANA'},
-  {tf:'M',   lim:24,  name:'1 MES'},
 ];
 
-let mode = 'quick';
+let mode = 'intraday';
 const cache = {};
 let steps = [];
 
@@ -208,16 +205,16 @@ function setStep(l,s){const st=steps.find(x=>x.l===l);if(st)st.s=s;document.getE
 
 function setMode(m){
   mode=m;
-  document.getElementById('modeQ').classList.toggle('active',m==='quick');
-  document.getElementById('modeF').classList.toggle('active',m==='full');
-  document.getElementById('btnGo').textContent=m==='full'?'📊 Generar informe completo':'⚡ Generar informe rápido';
+  document.getElementById('modeQ').classList.toggle('active',m==='intraday');
+  document.getElementById('modeF').classList.toggle('active',m==='context');
+  document.getElementById('btnGo').textContent=m==='context'?'🔭 Generar contexto macro':'⚡ Generar informe intraday';
 }
 
 async function runAll(){
   const btn=document.getElementById('btnGo');
   btn.disabled=true;btn.textContent='⟳ Recopilando...';
   document.getElementById('reportArea').classList.remove('show');
-  const TFS=mode==='full'?[...TFS_QUICK,...TFS_EXTRA]:TFS_QUICK;
+  const TFS=mode==='context'?TFS_CONTEXT:TFS_INTRADAY;
   steps=[
     {l:'Velas en paralelo',s:'wait'},
     {l:'BTC/ETH correlación',s:'wait'},
@@ -289,7 +286,7 @@ async function runAll(){
   let oi='N/A',oiUSD='N/A',fr='N/A',frRaw=0,ls='N/A',lsRaw=1;
   setStep('Futuros OI/Funding','run');
   try{
-    const curP=res[TFS_QUICK[0].tf]?.price||0;
+    const curP=res[TFS[0].tf]?.price||0;
     const [oiD,frD,lsD]=await Promise.all([
       byFetch(`${BY}/open-interest?category=linear&symbol=${SYM}&intervalTime=1h&limit=1`),
       byFetch(`${BY}/funding/history?category=linear&symbol=${SYM}&limit=1`),
@@ -332,12 +329,12 @@ async function runAll(){
 
   // INFORME
   const now=new Date().toLocaleString('es-ES');
-  const p=res[TFS_QUICK[0].tf]?.price||0;
+  const p=res[TFS[0].tf]?.price||0;
 
   let R=`═══════════════════════════════════════════════════
 NEAR/USDT · INFORME DE ANÁLISIS TÉCNICO
-Modo: ${mode==='full'?'COMPLETO':'RÁPIDO'} · Fuente: Bybit
-Generado: ${now}
+Modo: ${mode==='context'?'CONTEXTO MACRO (4h · 1d · 1w)':'INTRADAY (1m · 5m · 15m · 30m · 1h)'}
+Fuente: Bybit · Generado: ${now}
 ═══════════════════════════════════════════════════
 
 ESTRATEGIA DEL TRADER:
@@ -475,7 +472,7 @@ Fuente: Bybit API (spot + futuros) + Alternative.me
   document.getElementById('rbox').textContent=R;
   document.getElementById('reportArea').classList.add('show');
   btn.disabled=false;
-  btn.textContent=mode==='full'?'🔄 Actualizar completo':'🔄 Actualizar rápido';
+  btn.textContent=mode==='context'?'🔄 Actualizar contexto':'🔄 Actualizar intraday';
 }
 
 async function copyReport(){
