@@ -105,21 +105,34 @@ const fp  = (v,d=4) => parseFloat(v).toFixed(d);
 const fp2 = v => parseFloat(v).toFixed(2);
 function fmtV(v){v=+v;if(v>=1e9)return(v/1e9).toFixed(2)+'B';if(v>=1e6)return(v/1e6).toFixed(2)+'M';if(v>=1e3)return(v/1e3).toFixed(1)+'K';return v.toFixed(0)}
 
-async function byFetch(url, ttl=25000){
+// Cortafuegos: garantiza que una promesa SIEMPRE termina (resuelve o rechaza) antes de ms
+function withTimeout(promise, ms, label){
+  return Promise.race([
+    promise,
+    new Promise((_,rej)=>setTimeout(()=>rej(new Error('Timeout '+(label||''))), ms))
+  ]);
+}
+
+async function byFetch(url, ttl=25000, retries=1){
   if(cache[url] && Date.now()-cache[url].ts<ttl) return cache[url].d;
-  const ctrl = new AbortController();
-  const t = setTimeout(()=>ctrl.abort(), 12000);
-  try{
-    const r = await fetch(url, {signal:ctrl.signal});
-    clearTimeout(t);
-    const d = await r.json();
-    if(d.retCode!==undefined && d.retCode!==0) throw new Error(d.retMsg||'API error');
-    cache[url]={ts:Date.now(),d};
-    return d;
-  }catch(e){
-    clearTimeout(t);
-    throw e.name==='AbortError'?new Error('Timeout'):e;
+  let lastErr;
+  for(let attempt=0; attempt<=retries; attempt++){
+    const ctrl = new AbortController();
+    const t = setTimeout(()=>ctrl.abort(), 9000);
+    try{
+      const r = await fetch(url, {signal:ctrl.signal});
+      clearTimeout(t);
+      const d = await r.json();
+      if(d.retCode!==undefined && d.retCode!==0) throw new Error(d.retMsg||'API error');
+      cache[url]={ts:Date.now(),d};
+      return d;
+    }catch(e){
+      clearTimeout(t);
+      lastErr = e.name==='AbortError'?new Error('Timeout'):e;
+      if(attempt<retries) await new Promise(r=>setTimeout(r,500)); // pausa breve y reintenta
+    }
   }
+  throw lastErr;
 }
 
 function parseK(list){
@@ -217,7 +230,7 @@ function analyze(tf, ca){
   return{price:last.c,chg,high:Math.max(...ca.map(c=>c.h)),low:Math.min(...ca.map(c=>c.l)),vol:last.v,avgV,volRel:last.v/avgV,rsi:rsiL,hist:histL,bb:bbL,atr:atrL,obv:obvTr,e20:e20[e20.length-1],e50:e50[e50.length-1],e200:e200[e200.length-1],e200n,trend,frac:{bu:frac.bu.length,be:frac.be.length},pivs,fib:fibD,pp:ppD,vp:vpD,segs,rows};
 }
 
-function setStep(l,s){const st=steps.find(x=>x.l===l);if(st)st.s=s;document.getElementById('progList').innerHTML=steps.map(s=>`<div class="prog-item ${s.s}">${s.s==='done'?'✓':s.s==='run'?'⟳':s.s==='err'?'✗':'·'} ${s.l}</div>`).join('')}
+function setStep(l,s,extra){const st=steps.find(x=>x.l===l);if(st){st.s=s;if(extra!==undefined)st.extra=extra;}document.getElementById('progList').innerHTML=steps.map(s=>`<div class="prog-item ${s.s}">${s.s==='done'?'✓':s.s==='run'?'⟳':s.s==='err'?'✗':'·'} ${s.l}${s.extra?' '+s.extra:''}</div>`).join('')}
 
 function setMode(m){
   mode=m;
@@ -245,21 +258,26 @@ async function runAll(){
 
   const res={};
 
-  // 1. VELAS — grupos de 5 para no saturar
-  setStep('Velas en paralelo','run');
-  const chunks=[];
-  for(let i=0;i<TFS.length;i+=5) chunks.push(TFS.slice(i,i+5));
-  for(const chunk of chunks){
+  // 1. VELAS — grupos de 2 para no saturar, con cortafuegos por petición (nunca se cuelga)
+  setStep('Velas en paralelo','run','(0/'+TFS.length+')');
+  let velasOK=0,velasDone=0;
+  for(let i=0;i<TFS.length;i+=2){
+    const chunk=TFS.slice(i,i+2);
     const settled=await Promise.allSettled(
-      chunk.map(({tf,lim})=>byFetch(`${BY}/kline?category=spot&symbol=${SYM}&interval=${tf}&limit=${lim}`).then(d=>({tf,ca:parseK(d.result.list)})))
+      chunk.map(({tf,lim})=>withTimeout(
+        byFetch(`${BY}/kline?category=spot&symbol=${SYM}&interval=${tf}&limit=${lim}`).then(d=>({tf,ca:parseK(d.result.list)})),
+        11000, tf
+      ))
     );
-    settled.forEach((r,i)=>{
-      if(r.status==='fulfilled'){try{res[chunk[i].tf]=analyze(chunk[i].tf,r.value.ca)}catch(e){res[chunk[i].tf]={error:e.message}}}
-      else res[chunk[i].tf]={error:r.reason?.message||'Error'};
+    settled.forEach((r,k)=>{
+      velasDone++;
+      if(r.status==='fulfilled'){try{res[chunk[k].tf]=analyze(chunk[k].tf,r.value.ca);velasOK++}catch(e){res[chunk[k].tf]={error:e.message}}}
+      else res[chunk[k].tf]={error:r.reason?.message||'Error'};
     });
-    if(chunks.indexOf(chunk)<chunks.length-1) await new Promise(r=>setTimeout(r,800));
+    setStep('Velas en paralelo','run','('+velasDone+'/'+TFS.length+')');
+    if(i+2<TFS.length) await new Promise(r=>setTimeout(r,500));
   }
-  setStep('Velas en paralelo',Object.values(res).some(r=>!r.error)?'done':'err');
+  setStep('Velas en paralelo',velasOK>0?'done':'err','('+velasOK+'/'+TFS.length+' ok)');
 
   // 2. BTC/ETH
   let corrBTC='N/A',corrETH='N/A',btcP='N/A',ethP='N/A',btcChg='N/A',ethChg='N/A';
@@ -290,7 +308,10 @@ async function runAll(){
     try{
       const BTF=[{tf:'D',name:'DIARIO',lim:120},{tf:'W',name:'SEMANAL',lim:60},{tf:'M',name:'MENSUAL',lim:24}];
       const settled=await Promise.allSettled(
-        BTF.map(({tf,lim})=>byFetch(`${BY}/kline?category=spot&symbol=BTCUSDT&interval=${tf}&limit=${lim}`).then(d=>parseK(d.result.list)))
+        BTF.map(({tf,lim})=>withTimeout(
+          byFetch(`${BY}/kline?category=spot&symbol=BTCUSDT&interval=${tf}&limit=${lim}`).then(d=>parseK(d.result.list)),
+          11000, tf
+        ))
       );
       settled.forEach((r,i)=>{
         if(r.status==='fulfilled'){try{btcStruct[BTF[i].tf]={name:BTF[i].name,...analyze(BTF[i].tf,r.value)}}catch(e){btcStruct[BTF[i].tf]={name:BTF[i].name,error:e.message}}}
