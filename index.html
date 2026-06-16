@@ -247,7 +247,7 @@ async function runAll(){
   steps=[
     {l:'Velas en paralelo',s:'wait'},
     {l:'BTC/ETH correlación',s:'wait'},
-    ...(mode==='context'?[{l:'BTC estructura D/W/M',s:'wait'}]:[]),
+    ...(mode==='context'?[{l:'BTC contexto diario',s:'wait'}]:[]),
     {l:'Order book',s:'wait'},
     {l:'Futuros OI/Funding',s:'wait'},
     {l:'Fear & Greed',s:'wait'},
@@ -301,24 +301,18 @@ async function runAll(){
     setStep('BTC/ETH correlación','done');
   }catch(e){setStep('BTC/ETH correlación','err')}
 
-  // 2b. BTC ESTRUCTURA MACRO (Diario / Semanal / Mensual) — solo en modo Contexto (en intraday no aporta y ralentiza)
-  let btcStruct={};
+  // 2b. BTC CONTEXTO DIARIO — una sola petición ligera (antes 3 series; la mensual atascaba)
+  let btcDay=null;
   if(mode==='context'){
-    setStep('BTC estructura D/W/M','run');
+    setStep('BTC contexto diario','run');
     try{
-      const BTF=[{tf:'D',name:'DIARIO',lim:120},{tf:'W',name:'SEMANAL',lim:60},{tf:'M',name:'MENSUAL',lim:24}];
-      const settled=await Promise.allSettled(
-        BTF.map(({tf,lim})=>withTimeout(
-          byFetch(`${BY}/kline?category=spot&symbol=BTCUSDT&interval=${tf}&limit=${lim}`).then(d=>parseK(d.result.list)),
-          11000, tf
-        ))
+      const d=await withTimeout(
+        byFetch(`${BY}/kline?category=spot&symbol=BTCUSDT&interval=D&limit=120`).then(x=>parseK(x.result.list)),
+        11000, 'BTC-D'
       );
-      settled.forEach((r,i)=>{
-        if(r.status==='fulfilled'){try{btcStruct[BTF[i].tf]={name:BTF[i].name,...analyze(BTF[i].tf,r.value)}}catch(e){btcStruct[BTF[i].tf]={name:BTF[i].name,error:e.message}}}
-        else btcStruct[BTF[i].tf]={name:BTF[i].name,error:r.reason?.message||'Error'};
-      });
-      setStep('BTC estructura D/W/M',Object.values(btcStruct).some(v=>!v.error)?'done':'err');
-    }catch(e){setStep('BTC estructura D/W/M','err')}
+      btcDay=analyze('D', d);
+      setStep('BTC contexto diario','done');
+    }catch(e){setStep('BTC contexto diario','err')}
   }
 
   // 3. ORDER BOOK
@@ -409,20 +403,15 @@ async function runAll(){
   const now=new Date().toLocaleString('es-ES');
   const p=res[TFS[0].tf]?.price||0;
 
-  // Veredicto consolidado de BTC (D/W/M) — voto mayoritario de tendencia
-  let btcVerd='N/A',btcBlock=mode==='context'?'  Sin datos de BTC multiframe.':'  (Solo en modo Contexto — en intraday se omite para no ralentizar)';
-  {
-    const valid=Object.values(btcStruct).filter(v=>v&&!v.error);
-    if(valid.length){
-      const alc=valid.filter(v=>v.trend==='ALCISTA').length;
-      const baj=valid.filter(v=>v.trend==='BAJISTA').length;
-      btcVerd=alc>baj?'ALCISTA':baj>alc?'BAJISTA':'MIXTA';
-      btcBlock=['D','W','M'].map(tf=>{
-        const v=btcStruct[tf];
-        if(!v||v.error)return `  ${tf}: sin datos`;
-        return `  ${v.name.padEnd(8)} ${v.trend.padEnd(8)} · $${Math.round(v.price).toLocaleString()} · RSI ${fp2(v.rsi)} · MACD ${v.hist>=0?'▲':'▼'} · OBV ${v.obv} · EMA50 ${v.price>v.e50?'sobre✓':'bajo✗'} · EMA200 ${v.price>v.e200?'sobre✓':'bajo✗'}`;
-      }).join('\n');
-    }
+  // Contexto diario de BTC
+  let btcVerd='N/A',btcBlock=mode==='context'?'  Sin datos de BTC diario.':'  (Solo en modo Contexto)';
+  if(btcDay){
+    const v=btcDay;
+    btcVerd=v.trend;
+    btcBlock=`  Precio: $${Math.round(v.price).toLocaleString()} (${v.chg>=0?'+':''}${fp2(v.chg)}% último día)
+  Tendencia: ${v.trend} · RSI ${fp2(v.rsi)}${v.rsi>70?' (sobrecomprado)':v.rsi<30?' (sobrevendido)':''} · MACD ${v.hist>=0?'▲':'▼'} · OBV ${v.obv}
+  EMA20 $${Math.round(v.e20).toLocaleString()} ${v.price>v.e20?'sobre✓':'bajo✗'} · EMA50 $${Math.round(v.e50).toLocaleString()} ${v.price>v.e50?'sobre✓':'bajo✗'} · EMA200 $${Math.round(v.e200).toLocaleString()} ${v.price>v.e200?'sobre✓':'bajo✗'}
+  Rango: $${Math.round(v.low).toLocaleString()} — $${Math.round(v.high).toLocaleString()}`;
   }
 
   // Mapa de liquidación estimado (modelo propio, gratis, solo Bybit)
@@ -524,7 +513,7 @@ CORRELACIONES (48h · velas 1h):
   BTC: ${btcP} (${btcChg>=0?'+':''}${btcChg}%)  |  ETH: ${ethP} (${ethChg>=0?'+':''}${ethChg}%)
   Beta NEAR/BTC estimada: ~1.8x
 
-BTC — ESTRUCTURA MACRO (Diario · Semanal · Mensual):
+BTC — CONTEXTO DIARIO (marco 1 día):
   VEREDICTO BTC: ${btcVerd}  ← con beta 1.8x, esto manda sobre el escenario de NEAR
 ${btcBlock}
   Nota: si BTC no acompaña, NEAR raramente alcanza el objetivo +100% (regla de 3 confirmaciones).
