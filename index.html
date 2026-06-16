@@ -234,7 +234,7 @@ async function runAll(){
   steps=[
     {l:'Velas en paralelo',s:'wait'},
     {l:'BTC/ETH correlación',s:'wait'},
-    {l:'BTC estructura D/W/M',s:'wait'},
+    ...(mode==='context'?[{l:'BTC estructura D/W/M',s:'wait'}]:[]),
     {l:'Order book',s:'wait'},
     {l:'Futuros OI/Funding',s:'wait'},
     {l:'Fear & Greed',s:'wait'},
@@ -283,20 +283,22 @@ async function runAll(){
     setStep('BTC/ETH correlación','done');
   }catch(e){setStep('BTC/ETH correlación','err')}
 
-  // 2b. BTC ESTRUCTURA MACRO (Diario / Semanal / Mensual) — cierra el hueco crítico con beta 1.8x
+  // 2b. BTC ESTRUCTURA MACRO (Diario / Semanal / Mensual) — solo en modo Contexto (en intraday no aporta y ralentiza)
   let btcStruct={};
-  setStep('BTC estructura D/W/M','run');
-  try{
-    const BTF=[{tf:'D',name:'DIARIO',lim:120},{tf:'W',name:'SEMANAL',lim:60},{tf:'M',name:'MENSUAL',lim:24}];
-    const settled=await Promise.allSettled(
-      BTF.map(({tf,lim})=>byFetch(`${BY}/kline?category=spot&symbol=BTCUSDT&interval=${tf}&limit=${lim}`).then(d=>parseK(d.result.list)))
-    );
-    settled.forEach((r,i)=>{
-      if(r.status==='fulfilled'){try{btcStruct[BTF[i].tf]={name:BTF[i].name,...analyze(BTF[i].tf,r.value)}}catch(e){btcStruct[BTF[i].tf]={name:BTF[i].name,error:e.message}}}
-      else btcStruct[BTF[i].tf]={name:BTF[i].name,error:r.reason?.message||'Error'};
-    });
-    setStep('BTC estructura D/W/M',Object.values(btcStruct).some(v=>!v.error)?'done':'err');
-  }catch(e){setStep('BTC estructura D/W/M','err')}
+  if(mode==='context'){
+    setStep('BTC estructura D/W/M','run');
+    try{
+      const BTF=[{tf:'D',name:'DIARIO',lim:120},{tf:'W',name:'SEMANAL',lim:60},{tf:'M',name:'MENSUAL',lim:24}];
+      const settled=await Promise.allSettled(
+        BTF.map(({tf,lim})=>byFetch(`${BY}/kline?category=spot&symbol=BTCUSDT&interval=${tf}&limit=${lim}`).then(d=>parseK(d.result.list)))
+      );
+      settled.forEach((r,i)=>{
+        if(r.status==='fulfilled'){try{btcStruct[BTF[i].tf]={name:BTF[i].name,...analyze(BTF[i].tf,r.value)}}catch(e){btcStruct[BTF[i].tf]={name:BTF[i].name,error:e.message}}}
+        else btcStruct[BTF[i].tf]={name:BTF[i].name,error:r.reason?.message||'Error'};
+      });
+      setStep('BTC estructura D/W/M',Object.values(btcStruct).some(v=>!v.error)?'done':'err');
+    }catch(e){setStep('BTC estructura D/W/M','err')}
+  }
 
   // 3. ORDER BOOK
   let obR='N/A',obSp='N/A',obBid='N/A',obAsk='N/A',obSig='N/A';
@@ -387,7 +389,7 @@ async function runAll(){
   const p=res[TFS[0].tf]?.price||0;
 
   // Veredicto consolidado de BTC (D/W/M) — voto mayoritario de tendencia
-  let btcVerd='N/A',btcBlock='  Sin datos de BTC multiframe.';
+  let btcVerd='N/A',btcBlock=mode==='context'?'  Sin datos de BTC multiframe.':'  (Solo en modo Contexto — en intraday se omite para no ralentizar)';
   {
     const valid=Object.values(btcStruct).filter(v=>v&&!v.error);
     if(valid.length){
@@ -647,4 +649,3 @@ setInterval(loadPrice,15000);
 </script>
 </body>
 </html>
-
