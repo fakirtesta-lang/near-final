@@ -187,6 +187,26 @@ function pearson(a,b){
   return Math.sqrt(dA*dB)<1e-10?0:num/Math.sqrt(dA*dB);
 }
 
+function ichimoku(ca){
+  const n=ca.length, i=n-1;
+  const hh=end=>{let m=-Infinity;return p=>{m=-Infinity;for(let k=Math.max(0,end-p+1);k<=end;k++)m=Math.max(m,ca[k].h);return m}};
+  const HH=(p,end)=>{let m=-Infinity;for(let k=Math.max(0,end-p+1);k<=end;k++)m=Math.max(m,ca[k].h);return m};
+  const LL=(p,end)=>{let m=Infinity;for(let k=Math.max(0,end-p+1);k<=end;k++)m=Math.min(m,ca[k].l);return m};
+  const tenkan=(HH(9,i)+LL(9,i))/2;
+  const kijun=(HH(26,i)+LL(26,i))/2;
+  const j=Math.max(0,i-26);
+  const spanA=(((HH(9,j)+LL(9,j))/2)+((HH(26,j)+LL(26,j))/2))/2;
+  const spanB=(HH(52,j)+LL(52,j))/2;
+  const price=ca[i].c;
+  const top=Math.max(spanA,spanB), bot=Math.min(spanA,spanB);
+  let pos = price>top?'SOBRE NUBE (alcista)':price<bot?'BAJO NUBE (bajista)':'DENTRO NUBE (indecisión)';
+  const cloud = spanA>=spanB?'verde (sesgo alcista)':'roja (sesgo bajista)';
+  const tk = tenkan>kijun?'Tenkan>Kijun (momentum alcista)':tenkan<kijun?'Tenkan<Kijun (momentum bajista)':'TK plano';
+  const fSpanA=(tenkan+kijun)/2, fSpanB=(HH(52,i)+LL(52,i))/2;
+  const future = fSpanA>=fSpanB?'futura verde':'futura roja';
+  return{valid:n>=52,tenkan,kijun,spanA,spanB,pos,cloud,tk,future};
+}
+
 function analyze(tf, ca){
   const cls=ca.map(c=>c.c),last=ca[ca.length-1],prev=ca[ca.length-2]||last;
   const chg=(last.c-prev.c)/prev.c*100,avgV=ca.slice(-20).reduce((a,c)=>a+c.v,0)/20;
@@ -196,10 +216,10 @@ function analyze(tf, ca){
   const atrV=atr(ca),atrL=atrV.filter(v=>v!==null).pop()||0;
   const obvV=obv(ca),obvTr=obvV[obvV.length-1]>obvV[obvV.length-20]?'ALCISTA':'BAJISTA';
   const e20=ema(cls,20),e50=ema(cls,50),e200=ema(cls,Math.min(200,cls.length));
-  const frac=fractals(ca),pivs=elliott(ca,frac),fibD=fib(ca),ppD=pp(ca),vpD=vp(ca);
+  const frac=fractals(ca),pivs=elliott(ca,frac),fibD=fib(ca),ppD=pp(ca),vpD=vp(ca),ichiD=ichimoku(ca);
   const{segs,rows}=simil(pivs);
   const trend=last.c>e50[e50.length-1]&&last.c>e20[e20.length-1]?'ALCISTA':last.c<e50[e50.length-1]&&last.c<e20[e20.length-1]?'BAJISTA':'MIXTA';
-  return{price:last.c,chg,high:Math.max(...ca.map(c=>c.h)),low:Math.min(...ca.map(c=>c.l)),vol:last.v,avgV,volRel:last.v/avgV,rsi:rsiL,hist:histL,bb:bbL,atr:atrL,obv:obvTr,e20:e20[e20.length-1],e50:e50[e50.length-1],e200:e200[e200.length-1],trend,frac:{bu:frac.bu.length,be:frac.be.length},pivs,fib:fibD,pp:ppD,vp:vpD,segs,rows};
+  return{price:last.c,chg,high:Math.max(...ca.map(c=>c.h)),low:Math.min(...ca.map(c=>c.l)),vol:last.v,avgV,volRel:last.v/avgV,rsi:rsiL,hist:histL,bb:bbL,atr:atrL,obv:obvTr,e20:e20[e20.length-1],e50:e50[e50.length-1],e200:e200[e200.length-1],trend,frac:{bu:frac.bu.length,be:frac.be.length},pivs,fib:fibD,pp:ppD,vp:vpD,segs,rows,ichi:ichiD};
 }
 
 function setStep(l,s){const st=steps.find(x=>x.l===l);if(st)st.s=s;document.getElementById('progList').innerHTML=steps.map(s=>`<div class="prog-item ${s.s}">${s.s==='done'?'✓':s.s==='run'?'⟳':s.s==='err'?'✗':'·'} ${s.l}</div>`).join('')}
@@ -358,6 +378,8 @@ INSTRUCCIONES PARA EL ANALISTA IA:
 Eres un analista técnico experto en SCALPING de criptomonedas.
 Analiza TODOS los datos de este informe y responde en español de forma BREVE y ACCIONABLE.
 NO desarrolles el razonamiento ni des explicaciones largas (salvo que se te pida después).
+NO inventes ni asumas NINGÚN objetivo fijo de beneficio (ni +100% ni ningún otro %).
+El único objetivo es vender en máximos locales y recomprar más abajo, captando el rango.
 Da SOLO precios concretos y la acción a tomar, con esta estructura exacta:
 
 ── SI TENGO POSICIÓN ABIERTA ──
@@ -406,10 +428,13 @@ FUTUROS (Bybit perpetuos):
 SENTIMIENTO:
   Fear & Greed: ${fg.val}/100 — ${fg.name}
 
-MACRO:
-  11 Jun 2026 — IPC EEUU (Prev 2.3% | Est 2.2%) — ALTO IMPACTO
-  18 Jun 2026 — FOMC Minutes — ALTO IMPACTO
-  25 Jun 2026 — PCE Core (Prev 2.6% | Est 2.5%) — ALTO IMPACTO
+MACRO (contraste obligatorio):
+  ⚠ Antes de operar, CONTRASTA este análisis con el calendario macroeconómico ACTUAL.
+  Si tienes acceso a búsqueda web, comprueba para HOY y los próximos 2-3 días:
+    · IPC/CPI EEUU · PCE Core · decisiones, actas y discursos de la FED (FOMC, Powell)
+    · Empleo (NFP), PIB, y cualquier dato de "alto impacto"
+  Si hay un evento de alto impacto inminente, AVÍSALO al inicio de tu respuesta y
+  recomienda reducir o evitar exposición: puede invalidar cualquier setup de scalping.
 
 `;
 
@@ -429,6 +454,9 @@ EMA20: $${fp(d.e20,3)} ${d.price>d.e20?'SOBRE✓':'BAJO✗'}
 EMA50: $${fp(d.e50,3)} ${d.price>d.e50?'SOBRE✓':'BAJO✗'}
 EMA200: $${fp(d.e200,3)} ${d.price>d.e200?'SOBRE✓':'BAJO✗'}
 OBV: ${d.obv}  |  Tendencia: ${d.trend}
+
+Ichimoku (nube): ${d.ichi.valid?`${d.ichi.pos} · nube ${d.ichi.cloud} · ${d.ichi.tk} · ${d.ichi.future}`:'datos insuficientes (<52 velas)'}
+  Tenkan $${fp(d.ichi.tenkan,3)} | Kijun $${fp(d.ichi.kijun,3)} | SpanA $${fp(d.ichi.spanA,3)} | SpanB $${fp(d.ichi.spanB,3)}
 
 Volume Profile: POC $${fp(d.vp.poc)} | VAH $${fp(d.vp.vah)} | VAL $${fp(d.vp.val)}
 
