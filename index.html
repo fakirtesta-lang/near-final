@@ -227,7 +227,23 @@ function analyze(tf, ca){
   const frac=fractals(ca),pivs=elliott(ca,frac),fibD=fib(ca),ppD=pp(ca),vpD=vp(ca);
   const{segs,rows}=simil(pivs);
   const trend=last.c>e50[e50.length-1]&&last.c>e20[e20.length-1]?'ALCISTA':last.c<e50[e50.length-1]&&last.c<e20[e20.length-1]?'BAJISTA':'MIXTA';
-  return{price:last.c,chg,high:Math.max(...ca.map(c=>c.h)),low:Math.min(...ca.map(c=>c.l)),vol:last.v,avgV,volRel:last.v/avgV,rsi:rsiL,hist:histL,bb:bbL,atr:atrL,obv:obvTr,e20:e20[e20.length-1],e50:e50[e50.length-1],e200:e200[e200.length-1],e200n,trend,frac:{bu:frac.bu.length,be:frac.be.length},pivs,fib:fibD,pp:ppD,vp:vpD,segs,rows};
+  // Divergencia RSI (lookback ~10 velas): precio vs RSI en direcciones opuestas
+  let diverg='ninguna';
+  const lb=Math.min(10,cls.length-1);
+  const rsiClean=rsiV.map(v=>v===null?50:v);
+  if(lb>=5){
+    const dPrice=last.c-cls[cls.length-1-lb];
+    const dRsi=rsiClean[rsiClean.length-1]-rsiClean[rsiClean.length-1-lb];
+    if(dPrice<0 && dRsi>2) diverg='ALCISTA (precio baja, RSI sube)';
+    else if(dPrice>0 && dRsi<-2) diverg='BAJISTA (precio sube, RSI baja)';
+  }
+  // Vela alcista/bajista y volumen anómalo
+  const velaDir=last.c>=last.o?'alcista':'bajista';
+  const volRelV=last.v/avgV;
+  const volAnom=volRelV>=2?`ANÓMALO ${volRelV.toFixed(1)}x (vela ${velaDir})`:volRelV>=1.5?`elevado ${volRelV.toFixed(1)}x (vela ${velaDir})`:'normal';
+  // Posición respecto al área de valor (Volume Profile)
+  const vaPos=last.c>vpD.vah?'SOBRE VAH (valor alto)':last.c<vpD.val?'BAJO VAL (valor bajo)':'DENTRO del área de valor';
+  return{price:last.c,chg,high:Math.max(...ca.map(c=>c.h)),low:Math.min(...ca.map(c=>c.l)),vol:last.v,avgV,volRel:last.v/avgV,rsi:rsiL,hist:histL,bb:bbL,atr:atrL,obv:obvTr,e20:e20[e20.length-1],e50:e50[e50.length-1],e200:e200[e200.length-1],e200n,trend,diverg,volAnom,velaDir,vaPos,frac:{bu:frac.bu.length,be:frac.be.length},pivs,fib:fibD,pp:ppD,vp:vpD,segs,rows};
 }
 
 function setStep(l,s,extra){const st=steps.find(x=>x.l===l);if(st){st.s=s;if(extra!==undefined)st.extra=extra;}document.getElementById('progList').innerHTML=steps.map(s=>`<div class="prog-item ${s.s}">${s.s==='done'?'✓':s.s==='run'?'⟳':s.s==='err'?'✗':'·'} ${s.l}${s.extra?' '+s.extra:''}</div>`).join('')}
@@ -316,18 +332,22 @@ async function runAll(){
   }
 
   // 3. ORDER BOOK
-  let obR='N/A',obSp='N/A',obBid='N/A',obAsk='N/A',obSig='N/A';
+  let obR='N/A',obSp='N/A',obBid='N/A',obAsk='N/A',obSig='N/A',obWallsBid='N/A',obWallsAsk='N/A';
   setStep('Order book','run');
   try{
     const d=await byFetch(`${BY}/orderbook?category=spot&symbol=${SYM}&limit=20`);
-    const bids=d.result.b.slice(0,10).map(b=>[+b[0],+b[1]]);
-    const asks=d.result.a.slice(0,10).map(a=>[+a[0],+a[1]]);
+    const bids=d.result.b.slice(0,20).map(b=>[+b[0],+b[1]]);
+    const asks=d.result.a.slice(0,20).map(a=>[+a[0],+a[1]]);
     const bLiq=bids.reduce((a,b)=>a+b[0]*b[1],0),aLiq=asks.reduce((a,b)=>a+b[0]*b[1],0);
     const mid=(bids[0][0]+asks[0][0])/2;
     obR=fp2(bLiq/aLiq);
     obSp=fp(Math.abs(asks[0][0]-bids[0][0])/mid*100,4)+'%';
     obBid='$'+fmtV(bLiq);obAsk='$'+fmtV(aLiq);
     obSig=bLiq/aLiq>1.2?'BIDS DOMINAN (alcista)':bLiq/aLiq<0.8?'ASKS DOMINAN (bajista)':'EQUILIBRADO';
+    // 3 muros = niveles con más liquidez (precio × cantidad)
+    const topN=arr=>arr.map(([p,q])=>({p,usd:p*q})).sort((a,b)=>b.usd-a.usd).slice(0,3);
+    obWallsBid=topN(bids).map(w=>`$${fp(w.p)} (~$${fmtV(w.usd)})`).join(' · ');
+    obWallsAsk=topN(asks).map(w=>`$${fp(w.p)} (~$${fmtV(w.usd)})`).join(' · ');
     setStep('Order book','done');
   }catch(e){setStep('Order book','err')}
 
@@ -403,6 +423,25 @@ async function runAll(){
   const now=new Date().toLocaleString('es-ES');
   const p=res[TFS[0].tf]?.price||0;
 
+  // FOTO RÁPIDA — consenso de los TFs analizados (síntesis de datos, no sustituye el análisis del agente)
+  let fotoBlock='  Sin datos suficientes.';
+  {
+    const vals=TFS.map(t=>res[t.tf]).filter(d=>d&&!d.error);
+    if(vals.length){
+      const alc=vals.filter(d=>d.trend==='ALCISTA').length;
+      const baj=vals.filter(d=>d.trend==='BAJISTA').length;
+      const mix=vals.length-alc-baj;
+      const consenso=alc>baj?`ALCISTA (${alc}/${vals.length} TFs)`:baj>alc?`BAJISTA (${baj}/${vals.length} TFs)`:`MIXTO (${alc}↑/${baj}↓/${mix}~)`;
+      const tfMayor=res[TFS[TFS.length-1].tf];
+      const divs=TFS.map(t=>({n:t.name,d:res[t.tf]})).filter(x=>x.d&&!x.d.error&&x.d.diverg!=='ninguna').map(x=>`${x.n}: ${x.d.diverg}`);
+      const anoms=TFS.map(t=>({n:t.name,d:res[t.tf]})).filter(x=>x.d&&!x.d.error&&x.d.volAnom.startsWith('ANÓMALO')).map(x=>`${x.n} (${x.d.volAnom})`);
+      fotoBlock=`  Consenso de tendencia: ${consenso}
+  TF mayor (${TFS[TFS.length-1].name}): ${tfMayor&&!tfMayor.error?`${tfMayor.trend}, RSI ${fp2(tfMayor.rsi)}`:'sin datos'}
+  Divergencias RSI: ${divs.length?divs.join(' | '):'ninguna detectada'}
+  Volumen anómalo: ${anoms.length?anoms.join(' | '):'sin picos relevantes'}`;
+    }
+  }
+
   // Contexto diario de BTC
   let btcVerd='N/A',btcBlock=mode==='context'?'  Sin datos de BTC diario.':'  (Solo en modo Contexto)';
   if(btcDay){
@@ -440,6 +479,11 @@ NEAR/USDT · INFORME DE ANÁLISIS TÉCNICO
 Modo: ${mode==='context'?'CONTEXTO MACRO (4h · 1d · 1w)':'INTRADAY (1m · 5m · 15m · 30m · 1h)'}
 Fuente: Bybit · Generado: ${now}
 ═══════════════════════════════════════════════════
+
+── FOTO RÁPIDA (síntesis automática de datos) ──
+${fotoBlock}
+  Precio actual: $${fp(p)}
+  (El análisis completo lo desarrolla el agente más abajo)
 
 ESTRATEGIA DEL TRADER:
   Tipo: SPOT AGRESIVO — sin apalancamiento
@@ -522,6 +566,8 @@ ORDER BOOK:
   Ratio Bid/Ask: ${obR}  |  Señal: ${obSig}
   Liquidez bids: ${obBid}  |  asks: ${obAsk}
   Spread: ${obSp}
+  Muros de compra (soportes):    ${obWallsBid}
+  Muros de venta (resistencias): ${obWallsAsk}
 
 FUTUROS (Bybit perpetuos):
   Open Interest: ${oi} (≈${oiUSD})
@@ -543,7 +589,7 @@ MACRO:
 
 `;
 
-  for(const {tf,name} of TFS){
+  for(const {tf,name} of [...TFS].reverse()){
     const d=res[tf];
     if(!d||d.error){R+=`[${name}] Error: ${d?.error||'sin datos'}\n\n`;continue}
     R+=`───────────────────────────────────────────────────
@@ -551,6 +597,8 @@ TF: ${name}
 ───────────────────────────────────────────────────
 Precio: $${fp(d.price)} (${d.chg>=0?'+':''}${fp2(d.chg)}%)  Máx: $${fp(d.high)}  Mín: $${fp(d.low)}
 Vol: ${fmtV(d.vol)} (${fp2(d.volRel)}x media)  ATR: $${fp(d.atr)}
+Volumen: ${d.volAnom}
+Divergencia RSI: ${d.diverg}
 
 RSI: ${fp2(d.rsi)} ${d.rsi>70?'⚠SOBRECOMPRADO':d.rsi<30?'⚠SOBREVENDIDO':''}
 MACD hist: ${d.hist>=0?'+':''}${fp2(d.hist)} ${d.hist>0?'▲':'▼'}
@@ -561,6 +609,7 @@ EMA${d.e200n===200?'200':d.e200n+' (no hay 200 velas, EMA larga real)'}: $${fp(d
 OBV: ${d.obv}  |  Tendencia: ${d.trend}
 
 Volume Profile: POC $${fp(d.vp.poc)} | VAH $${fp(d.vp.vah)} | VAL $${fp(d.vp.val)}
+  Posición precio: ${d.vaPos}
 
 Fibonacci ($${fp(d.fib.lo)} → $${fp(d.fib.hi)}):
 ${d.fib.ret.map(l=>{const pct=((l.p-d.price)/d.price*100);return`  ${(l.r*100).toFixed(1).padStart(5)}% $${fp(l.p)} (${pct>=0?'+':''}${pct.toFixed(1)}%)${Math.abs(pct)<1.5?' ←ACTIVO':''}`}).join('\n')}
@@ -659,4 +708,3 @@ setInterval(loadPrice,15000);
 </script>
 </body>
 </html>
-
