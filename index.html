@@ -27,6 +27,11 @@ h1{font-size:17px;font-weight:700;margin-bottom:3px}
 .btn-go{background:#2dd4a0;color:#0d0f14}
 .btn-go:disabled{background:#1a3d30;color:#2dd4a0;cursor:wait}
 .btn-copy{background:#13161e;color:#4a9eff;border:.5px solid #4a9eff}
+.btn-pulse{background:#f5a623;color:#0d0f14}
+.btn-pulse:disabled{background:#4a3a18;color:#f5a623;cursor:wait}
+.clock-box{background:#13161e;border:.5px solid rgba(245,166,35,.25);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#9aa0b0;line-height:1.6}
+.clock-box .ck-hot{color:#f5a623;font-weight:700}
+.clock-box .ck-cold{color:#6b7080}
 .prog-box{background:#13161e;border-radius:10px;padding:14px;margin-bottom:10px;border:.5px solid rgba(255,255,255,.07);display:none}
 .prog-title{font-size:11px;font-weight:700;color:#6b7080;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
 .prog-item{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:13px;color:#4a5060}
@@ -63,7 +68,11 @@ h1{font-size:17px;font-weight:700;margin-bottom:3px}
   </div>
 </div>
 
+<div class="clock-box" id="clockBox">Calculando sesión de mercado…</div>
+
 <button class="btn btn-go" id="btnGo" onclick="runAll()">⚡ Generar informe rápido</button>
+
+<button class="btn btn-pulse" id="btnPulse" onclick="runPulse()">⚡ Pulso rápido (qué cambió en 15 min)</button>
 
 <div class="prog-box" id="progBox">
   <div class="prog-title">Recopilando datos...</div>
@@ -71,7 +80,7 @@ h1{font-size:17px;font-weight:700;margin-bottom:3px}
 </div>
 
 <div class="report-area" id="reportArea">
-  <div class="hint">
+  <div class="hint" id="hintBox">
     <strong>Listo.</strong> Copia el informe y pégalo en tu agente IA (Qwen, Claude u otro). Incluye ondas de Elliott, Fibonacci, pivotes, futuros, order book y señal de scalping (vender alto / comprar más abajo).
   </div>
   <button class="btn btn-copy" onclick="copyReport()">📋 Copiar informe completo</button>
@@ -207,6 +216,118 @@ function ichimoku(ca){
   return{valid:n>=52,tenkan,kijun,spanA,spanB,pos,cloud,tk,future};
 }
 
+// ── RELOJ DE MERCADO (100% local, sin API) ──
+function utcToLocal(hUTC,mUTC){
+  const n=new Date();
+  const x=new Date(Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate(),hUTC,mUTC||0));
+  return x.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+}
+function marketClock(){
+  const d=new Date();
+  const nowMin=d.getUTCHours()*60+d.getUTCMinutes();
+  // Sesiones (en minutos UTC)
+  const inAsia   = nowMin>=0   && nowMin<480;   // 00:00–08:00
+  const inLondon = nowMin>=480 && nowMin<990;   // 08:00–16:30
+  const inNY     = nowMin>=810 && nowMin<1200;  // 13:30–20:00
+  const overlap  = nowMin>=810 && nowMin<990;   // 13:30–16:30 (Londres+NY)
+  const dead     = nowMin>=1200 || nowMin<300;  // 20:00–05:00 (baja liquidez)
+  const sesiones=[];
+  if(inAsia)sesiones.push('Asia');
+  if(inLondon)sesiones.push('Londres');
+  if(inNY)sesiones.push('Nueva York');
+  // Hitos del día
+  const londonOpen=480, nyOpen=810;
+  const hitoTxt=(open,label)=>{
+    if(nowMin<open) return `${label} en ${open-nowMin} min (${utcToLocal(Math.floor(open/60),open%60)})`;
+    if(nowMin<open+60) return `${label} HACE ${nowMin-open} min — ventana caliente`;
+    return null;
+  };
+  const proximos=[hitoTxt(londonOpen,'Apertura Londres'),hitoTxt(nyOpen,'Apertura cash USA (NY)')].filter(Boolean);
+  // Funding Bybit cada 8h: 00:00 / 08:00 / 16:00 UTC
+  const fundings=[0,480,960];
+  const nextFunding=Math.min(...fundings.map(f=>f<=nowMin?f+1440:f));
+  const minsFunding=nextFunding-nowMin;
+  // Cierre de vela diaria 00:00 UTC
+  const minsDaily=((1440-nowMin)%1440)||1440;
+  // Estado / aviso
+  let estado, clase;
+  if(overlap){estado='SOLAPE Londres+NY — máxima volatilidad y stop hunts';clase='ck-hot';}
+  else if(inNY||inLondon){estado='Sesión activa — volatilidad normal/alta';clase='';}
+  else if(dead){estado='Hora muerta — baja liquidez, opera rango (soporte/resistencia), evita rupturas';clase='ck-cold';}
+  else {estado='Transición de sesión';clase='';}
+  return {
+    sesiones, estado, clase, overlap, dead,
+    proximos, minsFunding, minsDaily,
+    nextFundingLocal: utcToLocal(Math.floor((nextFunding%1440)/60),nextFunding%60)
+  };
+}
+function renderClock(){
+  try{
+    const c=marketClock();
+    const el=document.getElementById('clockBox');
+    if(!el)return;
+    const ses=c.sesiones.length?c.sesiones.join(' + '):'—';
+    const prox=c.proximos.length?c.proximos.join(' · '):'sin aperturas próximas';
+    el.innerHTML=`🕒 Sesión: <b>${ses}</b> · <span class="${c.clase}">${c.estado}</span><br>`+
+      `${prox}<br>`+
+      `Funding Bybit en ${c.minsFunding} min (${c.nextFundingLocal}) · Cierre vela diaria en ${Math.floor(c.minsDaily/60)}h ${c.minsDaily%60}m`;
+  }catch(e){}
+}
+function clockReport(){
+  const c=marketClock();
+  const ses=c.sesiones.length?c.sesiones.join(' + '):'ninguna (transición)';
+  let txt=`RELOJ DE MERCADO (hora local del dispositivo):\n`;
+  txt+=`  Sesión activa: ${ses}\n`;
+  txt+=`  Estado: ${c.estado}\n`;
+  if(c.proximos.length) txt+=`  Próximo: ${c.proximos.join(' | ')}\n`;
+  txt+=`  Próximo funding Bybit: en ${c.minsFunding} min (${c.nextFundingLocal})\n`;
+  txt+=`  Cierre vela diaria: en ${Math.floor(c.minsDaily/60)}h ${c.minsDaily%60}m\n`;
+  if(c.overlap) txt+=`  ⚠ Estamos en el solape Londres+NY: esperar movimientos bruscos y barridos de stops.\n`;
+  if(c.dead) txt+=`  ⚠ Hora de baja liquidez: priorizar rango sobre rupturas (más falsas roturas).\n`;
+  return txt;
+}
+
+// ── CLÚSTERES DE LIQUIDACIÓN (estimación local desde precio + apalancamiento) ──
+function liqClusters(price, lsRaw){
+  if(!price) return '';
+  const bands=[{lev:'100x',d:0.010},{lev:'50x',d:0.020},{lev:'25x',d:0.040},{lev:'10x',d:0.100}];
+  const ls=(typeof lsRaw==='number'&&isFinite(lsRaw)&&lsRaw>0)?lsRaw:1;
+  const wLong=ls/(1+ls), wShort=1/(1+ls);
+  const dens=w=>w>0.58?'●●● densa':w>0.45?'●● media':'● ligera';
+  const dn=bands.map(b=>`${b.lev} $${fp(price*(1-b.d))} (-${(b.d*100).toFixed(1)}%)`).join(' | ');
+  const up=bands.map(b=>`${b.lev} $${fp(price*(1+b.d))} (+${(b.d*100).toFixed(1)}%)`).join(' | ');
+  return `CLÚSTERES DE LIQUIDACIÓN (ESTIMADOS — no son posiciones reales):
+  ↓ Imanes BAJISTAS (liquidan LONGS, ${dens(wLong)}): ${dn}
+  ↑ Imanes ALCISTAS (liquidan SHORTS, ${dens(wShort)}): ${up}
+  Modelo teórico desde el precio actual y apalancamiento típico, ponderado por L/S=${fp2(ls)}.
+  El precio tiende a buscar estas zonas (liquidez); densidad mayor = imán más fuerte.`;
+}
+
+// ── VELOCIDAD DE CINTA / TAPE SPEED (delta de volumen agresor) ──
+async function tapeSpeed(){
+  try{
+    const d=await byFetch(`${BY}/recent-trade?category=spot&symbol=${SYM}&limit=60`,5000);
+    const list=d.result.list;
+    if(!list||!list.length) return {ok:false};
+    let buyVol=0,sellVol=0;
+    list.forEach(t=>{const q=(+t.size)*(+t.price); t.side==='Buy'?buyVol+=q:sellVol+=q;});
+    const tot=buyVol+sellVol;
+    const buyPct=tot?buyVol/tot*100:50;
+    const tLast=+list[0].time, tFirst=+list[list.length-1].time;
+    const spanSec=Math.max(1,(tLast-tFirst)/1000);
+    const tps=list.length/spanSec;
+    const delta=buyVol-sellVol;
+    const sig=buyPct>62?'COMPRA agresiva domina (presión alcista)':buyPct<38?'VENTA agresiva domina (presión bajista)':'agresores equilibrados';
+    return {ok:true,buyPct,delta,tps,spanSec,buyVol,sellVol,sig,n:list.length};
+  }catch(e){return {ok:false,err:e.message};}
+}
+function tapeLine(t){
+  if(!t||!t.ok) return 'Velocidad de cinta: N/A';
+  return `Velocidad de cinta (últimas ${t.n} ejec., ${t.spanSec.toFixed(0)}s): `+
+    `agresor compra ${t.buyPct.toFixed(0)}% / venta ${(100-t.buyPct).toFixed(0)}% · `+
+    `delta $${fmtV(Math.abs(t.delta))} ${t.delta>=0?'▲':'▼'} · ${t.tps.toFixed(1)} ejec/s\n  → ${t.sig}`;
+}
+
 function analyze(tf, ca){
   const cls=ca.map(c=>c.c),last=ca[ca.length-1],prev=ca[ca.length-2]||last;
   const chg=(last.c-prev.c)/prev.c*100,avgV=ca.slice(-20).reduce((a,c)=>a+c.v,0)/20;
@@ -233,6 +354,7 @@ function setMode(m){
 
 async function runAll(){
   const btn=document.getElementById('btnGo');
+  document.getElementById('hintBox').innerHTML='<strong>Listo.</strong> Copia el informe y pégalo en tu agente IA (Qwen, Claude u otro). Incluye reloj de mercado, ondas de Elliott, Fibonacci, pivotes, futuros, clústeres de liquidación, velocidad de cinta y señal de scalping.';
   btn.disabled=true;btn.textContent='⟳ Recopilando...';
   document.getElementById('reportArea').classList.remove('show');
   const TFS=mode==='context'?TFS_CONTEXT:TFS_INTRADAY;
@@ -241,6 +363,7 @@ async function runAll(){
     {l:'BTC/ETH correlación',s:'wait'},
     {l:'Order book',s:'wait'},
     {l:'Futuros OI/Funding',s:'wait'},
+    {l:'Velocidad de cinta',s:'wait'},
     {l:'Fear & Greed',s:'wait'},
     {l:'Ticker 24h',s:'wait'},
   ];
@@ -331,6 +454,11 @@ async function runAll(){
     setStep('Futuros OI/Funding','done');
   }catch(e){setStep('Futuros OI/Funding','err')}
 
+  // 4b. VELOCIDAD DE CINTA
+  setStep('Velocidad de cinta','run');
+  const tape=await tapeSpeed();
+  setStep('Velocidad de cinta',tape.ok?'done':'err');
+
   // 5. FEAR & GREED
   let fg={val:'N/A',name:'N/A'};
   setStep('Fear & Greed','run');
@@ -400,12 +528,14 @@ Termina SIEMPRE preguntando textualmente:
 "¿Quieres que te explique mi razonamiento?"
 
 ───────────────────────────────────────────────────
+${clockReport()}───────────────────────────────────────────────────
 DATOS GLOBALES
 ───────────────────────────────────────────────────
 Precio:        $${fp(p)}
 Máx 24h:       $${t24.h}  |  Mín 24h: $${t24.l}
 Vol 24h:       ${t24.v} NEAR (${t24.vq})
 Cambio 24h:    ${t24.chg}%
+${tapeLine(tape)}
 
 CORRELACIONES (48h · velas 1h):
   NEAR/BTC: ${corrBTC}  ${+corrBTC>0.7?'(alta — BTC decisivo)':+corrBTC>0.5?'(media)':'(baja)'}
@@ -425,16 +555,19 @@ FUTUROS (Bybit perpetuos):
   Funding Rate:  ${fr}  ${frRaw>0.01?'(longs pagan — sobrecargado)':frRaw<-0.01?'(shorts pagan — posible squeeze)':'(neutral)'}
   Long/Short:    ${ls}  ${lsRaw>1.2?'(muchos largos — riesgo flush)':lsRaw<0.8?'(muchos cortos — posible squeeze)':'(equilibrado)'}
 
+${liqClusters(p, lsRaw)}
+
 SENTIMIENTO:
   Fear & Greed: ${fg.val}/100 — ${fg.name}
 
 MACRO (contraste obligatorio):
-  ⚠ Antes de operar, CONTRASTA este análisis con el calendario macroeconómico ACTUAL.
+  ⚠ Cruza el RELOJ DE MERCADO de arriba con el calendario macro antes de operar.
   Si tienes acceso a búsqueda web, comprueba para HOY y los próximos 2-3 días:
     · IPC/CPI EEUU · PCE Core · decisiones, actas y discursos de la FED (FOMC, Powell)
     · Empleo (NFP), PIB, y cualquier dato de "alto impacto"
-  Si hay un evento de alto impacto inminente, AVÍSALO al inicio de tu respuesta y
-  recomienda reducir o evitar exposición: puede invalidar cualquier setup de scalping.
+  Regla operativa: si hay un dato de alto impacto en menos de ~60 min, o estamos en el
+  solape Londres+NY, AVÍSALO al inicio de tu respuesta y recomienda reducir/evitar
+  exposición y ensanchar los precios de recompra: puede invalidar cualquier setup.
 
 `;
 
@@ -525,6 +658,150 @@ ${parseFloat(oiChg1h)<-5?`  ⚠ OI ${oiChg1h} en 1h — liquidaciones o salida d
   btn.textContent=mode==='context'?'🔄 Actualizar contexto':'🔄 Actualizar intraday';
 }
 
+async function runPulse(){
+  const btn=document.getElementById('btnPulse');
+  const btnG=document.getElementById('btnGo');
+  btn.disabled=true; btnG.disabled=true;
+  btn.textContent='⟳ Pulso…';
+  document.getElementById('reportArea').classList.remove('show');
+  document.getElementById('hintBox').innerHTML='<strong>PULSO.</strong> Mini-informe rápido para pegar al agente tras el intraday y preguntar: ¿la estructura sigue válida, mantengo o cancelo la recompra?';
+  document.getElementById('progBox').style.display='block';
+  steps=[{l:'Pulso de mercado (datos en caliente)',s:'run'}];
+  setStep('Pulso de mercado (datos en caliente)','run');
+
+  const R2=await Promise.allSettled([
+    byFetch(`${BY}/tickers?category=spot&symbol=${SYM}`,3000),
+    tapeSpeed(),
+    byFetch(`${BY}/orderbook?category=spot&symbol=${SYM}&limit=25`,3000),
+    byFetch(`${BY}/open-interest?category=linear&symbol=${SYM}&intervalTime=5min&limit=4`,3000),
+    byFetch(`${BY}/funding/history?category=linear&symbol=${SYM}&limit=1`,3000),
+    byFetch(`${BY}/account-ratio?category=linear&symbol=${SYM}&period=5min&limit=1`,3000),
+    byFetch(`${BY}/kline?category=spot&symbol=${SYM}&interval=1&limit=50`,3000),
+    byFetch(`${BY}/kline?category=spot&symbol=${SYM}&interval=5&limit=50`,3000),
+  ]);
+  const val=i=>R2[i].status==='fulfilled'?R2[i].value:null;
+
+  // Precio
+  let price=0,chg24='N/A';
+  const tk=val(0);
+  if(tk){const t=tk.result.list[0];price=+t.lastPrice;chg24=fp2(+t.price24hPcnt*100);}
+
+  // Tape
+  const tape=val(1);
+
+  // Order book + paredes
+  let obRatio='N/A',obSig='N/A',wallBid='N/A',wallAsk='N/A';
+  const ob=val(2);
+  if(ob){
+    const bids=ob.result.b.map(x=>[+x[0],+x[1]]), asks=ob.result.a.map(x=>[+x[0],+x[1]]);
+    const bLiq=bids.reduce((a,x)=>a+x[0]*x[1],0), aLiq=asks.reduce((a,x)=>a+x[0]*x[1],0);
+    obRatio=fp2(bLiq/aLiq);
+    obSig=bLiq/aLiq>1.2?'BIDS dominan':bLiq/aLiq<0.8?'ASKS dominan':'equilibrado';
+    const tB=bids.reduce((m,x)=>x[1]>m[1]?x:m,bids[0]), tA=asks.reduce((m,x)=>x[1]>m[1]?x:m,asks[0]);
+    wallBid=`$${fp(tB[0])} (${fmtV(tB[0]*tB[1])})`;
+    wallAsk=`$${fp(tA[0])} (${fmtV(tA[0]*tA[1])})`;
+  }
+
+  // OI var 5/15min
+  let oiNow='N/A',oi5='N/A',oi15='N/A';
+  const oiD=val(3);
+  if(oiD){
+    const L=oiD.result.list;
+    const now=+L[0].openInterest;
+    oiNow=fmtV(now)+' NEAR';
+    if(L.length>1) oi5=(((now-+L[1].openInterest)/+L[1].openInterest)*100).toFixed(2)+'%';
+    if(L.length>3) oi15=(((now-+L[3].openInterest)/+L[3].openInterest)*100).toFixed(2)+'%';
+  }
+
+  // Funding / LS
+  let fr='N/A',ls='N/A',lsRaw=1;
+  const frD=val(4);
+  if(frD){const r=+frD.result.list[0].fundingRate*100; fr=(r>=0?'+':'')+r.toFixed(4)+'%';}
+  const lsD=val(5);
+  if(lsD){lsRaw=+lsD.result.list[0].buyRatio/+lsD.result.list[0].sellRatio; ls=fp2(lsRaw);}
+
+  // RSI 1m / 5m + posición EMA20
+  const rsiPos=(kd)=>{
+    if(!kd) return {rsi:'N/A',ema:'N/A'};
+    const ca=parseK(kd.result.list), cls=ca.map(c=>c.c);
+    const rv=rsi(cls).filter(v=>v!==null).pop();
+    const e=ema(cls,20).pop();
+    const last=cls[cls.length-1];
+    return {rsi:rv!=null?fp2(rv):'N/A', ema:last>e?'sobre EMA20✓':'bajo EMA20✗'};
+  };
+  const r1=rsiPos(val(6)), r5=rsiPos(val(7));
+
+  setStep('Pulso de mercado (datos en caliente)',price?'done':'err');
+
+  const now=new Date().toLocaleString('es-ES');
+  const c=marketClock();
+  const sesTxt=c.sesiones.length?c.sesiones.join(' + '):'transición';
+
+  let R=`═══════════════════════════════════════════════════
+NEAR/USDT · PULSO RÁPIDO (seguimiento intradía)
+Generado: ${now}
+═══════════════════════════════════════════════════
+
+INSTRUCCIÓN AL AGENTE IA:
+Este es un PULSO de seguimiento, NO un informe completo. Compáralo con el último
+informe intraday que te pasé. Dime BREVE y SOLO esto:
+  1) ¿La estructura sigue válida o ha cambiado?
+  2) ¿Mantengo o cancelo mi orden de recompra / venta pendiente?
+  3) Si algo se ha roto, nuevo precio de acción.
+NO inventes objetivos de % fijos. Termina preguntando: "¿Quieres que lo desarrolle?"
+
+RELOJ: ${sesTxt} · ${c.estado}
+  Funding en ${c.minsFunding} min · cierre diario en ${Math.floor(c.minsDaily/60)}h ${c.minsDaily%60}m
+
+PRECIO AHORA:   $${fp(price)} (24h ${chg24}%)
+${tapeLine(tape)}
+
+MOMENTUM RÁPIDO:
+  RSI 1m: ${r1.rsi} ${r1.ema}   |   RSI 5m: ${r5.rsi} ${r5.ema}
+
+FUTUROS EN CALIENTE:
+  OI: ${oiNow}  ·  var 5min ${oi5} · var 15min ${oi15}
+  ${parseFloat(oi15)>3?'⚠ OI subiendo fuerte (15m) — entrada de posiciones, posible impulso':parseFloat(oi15)<-3?'⚠ OI cayendo (15m) — cierres/liquidaciones':'OI estable (15m)'}
+  Funding: ${fr}  ·  Long/Short: ${ls}
+
+ORDER BOOK (paredes ahora):
+  Ratio bid/ask: ${obRatio} (${obSig})
+  Pared compra (soporte): ${wallBid}
+  Pared venta (resistencia): ${wallAsk}
+
+${liqClusters(price, lsRaw)}`;
+
+  if(lastReport){
+    const diffMin=Math.round((Date.now()-lastReport.ts)/60000);
+    const pd=lastReport.price?((price-lastReport.price)/lastReport.price*100).toFixed(2):'N/A';
+    R+=`
+
+───────────────────────────────────────────────────
+CAMBIOS DESDE EL ÚLTIMO INFORME COMPLETO (hace ${diffMin} min)
+───────────────────────────────────────────────────
+Precio:  $${fp(lastReport.price)} → $${fp(price)}  (${pd>=0?'+':''}${pd}%)
+Funding: ${lastReport.fr} → ${fr}
+L/S:     ${lastReport.ls} → ${ls}
+${Math.abs(+pd)>1.5?`  ⚡ Movimiento de precio relevante (${pd}%) — revisar si el setup sigue vivo`:'  · Precio sin cambio relevante desde el informe'}
+${lastReport.fr!==fr?'  ⚡ Funding ha cambiado — posible giro de sesgo':'  · Funding estable'}`;
+  } else {
+    R+=`
+
+(No hay informe completo previo en esta sesión para comparar — genera primero un Intraday.)`;
+  }
+
+  R+=`
+
+═══════════════════════════════════════════════════
+FIN · PULSO · ${now}
+═══════════════════════════════════════════════════`;
+
+  document.getElementById('rbox').textContent=R;
+  document.getElementById('reportArea').classList.add('show');
+  btn.disabled=false; btnG.disabled=false;
+  btn.textContent='⚡ Pulso rápido (qué cambió en 15 min)';
+}
+
 async function copyReport(){
   const txt=document.getElementById('rbox').textContent;
   try{
@@ -554,6 +831,8 @@ async function loadPrice(){
 
 loadPrice();
 setInterval(loadPrice,15000);
+renderClock();
+setInterval(renderClock,30000);
 </script>
 </body>
 </html>
