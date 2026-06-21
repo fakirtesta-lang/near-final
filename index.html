@@ -370,6 +370,57 @@ function tapeLine(t){
     `delta $${fmtV(Math.abs(t.delta))} ${t.delta>=0?'▲':'▼'} · ${t.tps.toFixed(1)} ejec/s\n  → ${t.sig}`;
 }
 
+// ── TENDENCIA DE FONDO 3D (sintético: Bybit no tiene velas de 3 días) ──
+function sma(a,n){return a.map((_,i)=>i<n-1?null:a.slice(i-n+1,i+1).reduce((x,y)=>x+y,0)/n)}
+function aggregate3D(daily){
+  // Agrupa de 3 en 3 desde la vela más reciente hacia atrás, para que el último bloque
+  // contenga los 3 días más recientes (lo viejo, si queda incompleto, pesa poco).
+  const out=[];
+  for(let end=daily.length; end>0; end-=3){
+    const s=daily.slice(Math.max(0,end-3),end);
+    if(!s.length) break;
+    out.unshift({
+      t:s[0].t, o:s[0].o,
+      h:Math.max(...s.map(c=>c.h)), l:Math.min(...s.map(c=>c.l)),
+      c:s[s.length-1].c, v:s.reduce((a,c)=>a+c.v,0)
+    });
+  }
+  return out;
+}
+async function macro3D(){
+  try{
+    const d=await byFetch(`${BY}/kline?category=spot&symbol=${SYM}&interval=D&limit=200`);
+    const daily=parseK(d.result.list);
+    const c3=aggregate3D(daily);
+    if(c3.length<20) return `TENDENCIA DE FONDO · 3 DÍAS: datos insuficientes (${c3.length} velas)\n`;
+    const cls=c3.map(x=>x.c);
+    const price=cls[cls.length-1];
+    const rsiL=rsi(cls).filter(v=>v!==null).pop()||50;
+    const sma20=sma(cls,20).filter(v=>v!==null).pop();
+    const e20=ema(cls,20).pop();
+    const e50=ema(cls,Math.min(50,cls.length)).pop();
+    const pos=(v)=>price>v?'precio SOBRE':'precio BAJO';
+    const trend = (price>e20&&price>e50&&e20>e50)?'ALCISTA':(price<e20&&price<e50&&e20<e50)?'BAJISTA':'LATERAL/MIXTA';
+    const rsiTxt = rsiL>70?'sobrecompra de fondo':rsiL<30?'sobreventa de fondo':'neutral';
+    const lectura = trend==='ALCISTA'
+      ? 'El fondo acompaña las compras: scalps largos a favor, los cortos son contra-tendencia (más riesgo).'
+      : trend==='BAJISTA'
+      ? 'El fondo pesa a la baja: cautela con los rebotes; comprar es contra-tendencia (más riesgo).'
+      : 'Sin tendencia de fondo clara: prioriza rango (soporte/resistencia) sobre rupturas.';
+    return `───────────────────────────────────────────────────
+TENDENCIA DE FONDO · 3 DÍAS (sintético, ${c3.length} velas de 3D)
+───────────────────────────────────────────────────
+Precio:   $${fp(price)}
+RSI(14):  ${fp2(rsiL)} (${rsiTxt})
+SMA20:    $${fp(sma20,3)} (${pos(sma20)})
+EMA20:    $${fp(e20,3)} (${pos(e20)})  |  EMA50: $${fp(e50,3)} (${pos(e50)})
+Sesgo macro 3D: ${trend}
+Lectura: ${lectura}
+
+`;
+  }catch(e){return `TENDENCIA DE FONDO · 3 DÍAS: error (${e.message||'fallo'})\n\n`;}
+}
+
 function analyze(tf, ca){
   const cls=ca.map(c=>c.c),last=ca[ca.length-1],prev=ca[ca.length-2]||last;
   const chg=(last.c-prev.c)/prev.c*100,avgV=ca.slice(-20).reduce((a,c)=>a+c.v,0)/20;
@@ -402,6 +453,7 @@ async function runAll(){
   const TFS=mode==='context'?TFS_CONTEXT:TFS_INTRADAY;
   steps=[
     ...TFS.map(t=>({l:`Vela ${t.name}`,s:'wait'})),
+    ...(mode==='context'?[{l:'Tendencia 3D (sintética)',s:'wait'}]:[]),
     {l:'BTC/ETH correlación',s:'wait'},
     {l:'Order book',s:'wait'},
     {l:'Futuros OI/Funding',s:'wait'},
@@ -423,6 +475,14 @@ async function runAll(){
     ));
     await sleep(0); // cede el hilo: deja repintar el progreso, no congela Safari
     if(gi<groups.length-1) await sleep(500); // pausa entre grupos para no saturar móvil
+  }
+
+  // 1b. TENDENCIA DE FONDO 3D (solo modo contexto)
+  let block3D='';
+  if(mode==='context'){
+    setStep('Tendencia 3D (sintética)','run');
+    block3D=await macro3D();
+    setStep('Tendencia 3D (sintética)', block3D.includes('error')||block3D.includes('insuficientes')?'err':'done');
   }
 
   // 2. BTC/ETH
@@ -496,14 +556,18 @@ async function runAll(){
   const tape=await tapeSpeed();
   setStep('Velocidad de cinta',tape.ok?'done':'err');
 
-  // 5. FEAR & GREED
+  // 5. FEAR & GREED (con timeout duro — nunca cuelga el informe)
   let fg={val:'N/A',name:'N/A'};
   setStep('Fear & Greed','run');
   try{
-    const r=await fetch('https://api.alternative.me/fng/?limit=1');
-    const d=await r.json();
-    fg={val:d.data[0].value,name:d.data[0].value_classification};
-    setStep('Fear & Greed','done');
+    const r=await withHardTimeout(
+      fetch('https://api.alternative.me/fng/?limit=1').then(x=>x.json()).catch(e=>({__err:true})),
+      8000
+    );
+    if(r && !r.__timeout && !r.__err && r.data){
+      fg={val:r.data[0].value,name:r.data[0].value_classification};
+      setStep('Fear & Greed','done');
+    } else setStep('Fear & Greed','err');
   }catch(e){setStep('Fear & Greed','err')}
 
   // 6. TICKER
@@ -607,6 +671,8 @@ MACRO (contraste obligatorio):
   exposición y ensanchar los precios de recompra: puede invalidar cualquier setup.
 
 `;
+
+  R+=block3D;
 
   for(const {tf,name} of TFS){
     const d=res[tf];
