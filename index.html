@@ -114,25 +114,67 @@ const fp  = (v,d=4) => parseFloat(v).toFixed(d);
 const fp2 = v => parseFloat(v).toFixed(2);
 function fmtV(v){v=+v;if(v>=1e9)return(v/1e9).toFixed(2)+'B';if(v>=1e6)return(v/1e6).toFixed(2)+'M';if(v>=1e3)return(v/1e3).toFixed(1)+'K';return v.toFixed(0)}
 
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
 async function byFetch(url, ttl=25000){
   if(cache[url] && Date.now()-cache[url].ts<ttl) return cache[url].d;
-  const ctrl = new AbortController();
-  const t = setTimeout(()=>ctrl.abort(), 12000);
-  try{
-    const r = await fetch(url, {signal:ctrl.signal});
-    clearTimeout(t);
-    const d = await r.json();
-    if(d.retCode!==undefined && d.retCode!==0) throw new Error(d.retMsg||'API error');
-    cache[url]={ts:Date.now(),d};
-    return d;
-  }catch(e){
-    clearTimeout(t);
-    throw e.name==='AbortError'?new Error('Timeout'):e;
-  }
+  const work=(async()=>{
+    const ctrl = new AbortController();
+    const t = setTimeout(()=>ctrl.abort(), 12000);
+    try{
+      const r = await fetch(url, {signal:ctrl.signal});
+      clearTimeout(t);
+      const d = await r.json();
+      if(d.retCode!==undefined && d.retCode!==0) throw new Error(d.retMsg||'API error');
+      cache[url]={ts:Date.now(),d};
+      return d;
+    }catch(e){
+      clearTimeout(t);
+      throw e.name==='AbortError'?new Error('Timeout'):e;
+    }
+  })();
+  // Red de seguridad: si fetch queda colgado (timers de Safari congelados en 2º plano),
+  // esta carrera garantiza que byFetch NUNCA se queda esperando para siempre.
+  const raced = await Promise.race([
+    work.then(d=>({d})).catch(e=>({e})),
+    sleep(11000).then(()=>({__t:true}))
+  ]);
+  if(raced.__t) throw new Error('Timeout');
+  if(raced.e) throw raced.e;
+  return raced.d;
 }
 
 function parseK(list){
   return list.slice().reverse().map(k=>({t:+k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]}));
+}
+
+// Timeout DURO: siempre resuelve (nunca cuelga), aunque el AbortController de Safari no dispare en 2º plano.
+function withHardTimeout(promise, ms){
+  return Promise.race([promise, sleep(ms).then(()=>({__timeout:true}))]);
+}
+// Trae una vela, la analiza, actualiza su paso y nunca deja el flujo colgado (timeout duro + 1 reintento).
+async function fetchOneKline(tf, lim, name){
+  const label=`Vela ${name}`;
+  setStep(label,'run');
+  for(let intento=1;intento<=2;intento++){
+    const r=await withHardTimeout(
+      byFetch(`${BY}/kline?category=spot&symbol=${SYM}&interval=${tf}&limit=${lim}`)
+        .then(d=>({ok:true,ca:parseK(d.result.list)}))
+        .catch(e=>({ok:false,err:e.message||'Error'})),
+      9000
+    );
+    if(r&&r.__timeout){
+      if(intento===2){setStep(label,'err');return {error:'Timeout (red lenta o app en 2º plano)'};}
+    } else if(r.ok){
+      try{const a=analyze(tf,r.ca);setStep(label,'done');return a;}
+      catch(e){setStep(label,'err');return {error:'cálculo: '+(e.message||'fallo')};}
+    } else {
+      if(intento===2){setStep(label,'err');return {error:r.err};}
+    }
+    await sleep(400); // pausa antes de reintentar
+  }
+  setStep(label,'err');
+  return {error:'desconocido'};
 }
 
 function ema(a,n){const k=2/(n+1);let v=a[0];return a.map((x,i)=>{if(!i)return v;v=x*k+v*(1-k);return v})}
@@ -359,7 +401,7 @@ async function runAll(){
   document.getElementById('reportArea').classList.remove('show');
   const TFS=mode==='context'?TFS_CONTEXT:TFS_INTRADAY;
   steps=[
-    {l:'Velas en paralelo',s:'wait'},
+    ...TFS.map(t=>({l:`Vela ${t.name}`,s:'wait'})),
     {l:'BTC/ETH correlación',s:'wait'},
     {l:'Order book',s:'wait'},
     {l:'Futuros OI/Funding',s:'wait'},
@@ -368,25 +410,20 @@ async function runAll(){
     {l:'Ticker 24h',s:'wait'},
   ];
   document.getElementById('progBox').style.display='block';
-  setStep('Velas en paralelo','wait');
+  setStep(`Vela ${TFS[0].name}`,'wait');
 
   const res={};
 
-  // 1. VELAS — grupos de 5 para no saturar
-  setStep('Velas en paralelo','run');
-  const chunks=[];
-  for(let i=0;i<TFS.length;i+=5) chunks.push(TFS.slice(i,i+5));
-  for(const chunk of chunks){
-    const settled=await Promise.allSettled(
-      chunk.map(({tf,lim})=>byFetch(`${BY}/kline?category=spot&symbol=${SYM}&interval=${tf}&limit=${lim}`).then(d=>({tf,ca:parseK(d.result.list)})))
-    );
-    settled.forEach((r,i)=>{
-      if(r.status==='fulfilled'){try{res[chunk[i].tf]=analyze(chunk[i].tf,r.value.ca)}catch(e){res[chunk[i].tf]={error:e.message}}}
-      else res[chunk[i].tf]={error:r.reason?.message||'Error'};
-    });
-    if(chunks.indexOf(chunk)<chunks.length-1) await new Promise(r=>setTimeout(r,800));
+  // 1. VELAS — grupos de 2, cada TF con su propio paso, timeout duro y reintento
+  const groups=[];
+  for(let i=0;i<TFS.length;i+=2) groups.push(TFS.slice(i,i+2));
+  for(let gi=0; gi<groups.length; gi++){
+    await Promise.all(groups[gi].map(t=>
+      fetchOneKline(t.tf,t.lim,t.name).then(a=>{res[t.tf]=a;})
+    ));
+    await sleep(0); // cede el hilo: deja repintar el progreso, no congela Safari
+    if(gi<groups.length-1) await sleep(500); // pausa entre grupos para no saturar móvil
   }
-  setStep('Velas en paralelo',Object.values(res).some(r=>!r.error)?'done':'err');
 
   // 2. BTC/ETH
   let corrBTC='N/A',corrETH='N/A',btcP='N/A',ethP='N/A',btcChg='N/A',ethChg='N/A';
