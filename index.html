@@ -172,33 +172,31 @@ function setMode(m){
   document.getElementById('btnGo').textContent=m==='context'?'🔭 Generar contexto macro':'⚡ Generar informe intraday';
 }
 
-// ==================== RED: TIMEOUT DURO (Promise.race) ====================
-// Safari congela timers y AbortController no dispara con pantalla atenuada.
-// Promise.race garantiza que SIEMPRE se resuelve en X ms.
+// ==================== RED: AbortController (libera conexión) + salvavidas race ====================
+// CLAVE: AbortController CANCELA el fetch al expirar y libera la conexión. Sin esto,
+// las peticiones lentas quedan zombis ocupando los ~6 slots de Safari y bloquean las
+// siguientes (cascada de fallos en las velas). El Promise.race es solo un backstop por
+// si Safari congela el timer con la pantalla atenuada.
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 function withHardTimeout(promise, ms){
   return Promise.race([ promise, sleep(ms).then(()=>({__timeout:true})) ]);
 }
-async function rawFetch(url, ms=12000){
-  const res = await withHardTimeout(fetch(url), ms);
-  if(res && res.__timeout) throw new Error('Timeout');
-  if(!res.ok) throw new Error('HTTP '+res.status);
-  return await res.json();
-}
-// 1 reintento SOLO para timeout/red. NO reintenta errores de API (evita
-// martillear el rate-limit de Bybit, que devuelve retCode != 0).
 async function byFetch(url, ttl=20000){
   if(cache[url] && Date.now()-cache[url].ts<ttl) return cache[url].d;
-  let data;
-  try{
-    data = await rawFetch(url, 12000);
-  }catch(e){
-    await sleep(400);
-    data = await rawFetch(url, 12000); // segundo y último intento
+  async function attempt(){
+    const ctrl=new AbortController();
+    const timer=setTimeout(()=>ctrl.abort(),12000);
+    const netP=fetch(url,{signal:ctrl.signal})
+      .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+      .finally(()=>clearTimeout(timer));
+    return Promise.race([ netP, sleep(14000).then(()=>{throw new Error('Timeout')}) ]);
   }
-  if(data.retCode!==undefined && data.retCode!==0) throw new Error(data.retMsg||'API error');
-  cache[url]={ts:Date.now(),d:data};
-  return data;
+  let d;
+  try{ d=await attempt(); }
+  catch(e){ await sleep(500); d=await attempt(); }   // 1 reintento
+  if(d.retCode!==undefined && d.retCode!==0) throw new Error(d.retMsg||'API error');
+  cache[url]={ts:Date.now(),d};
+  return d;
 }
 
 // Máx 3 peticiones concurrentes
@@ -466,22 +464,23 @@ async function runAll(){
   ];
   document.getElementById('progBox').style.display='block'; setStep('Velas NEAR','wait');
   const res={};
+  try{
 
-  // 1. VELAS NEAR — grupos de 3 (menos pico en arranque frío) + 2ª pasada de fallidos
+  // 1. VELAS NEAR — grupos de 5 (config probada) + 2ª pasada de fallidos
   setStep('Velas NEAR','run');
   async function pullK(tf,lim){
     const d=await byFetch(`${BY}/kline?category=spot&symbol=${SYM}&interval=${tf}&limit=${lim}`);
     return parseK(d.result.list);
   }
   async function passK(list){
-    for(let i=0;i<list.length;i+=3){
-      const chunk=list.slice(i,i+3);
+    for(let i=0;i<list.length;i+=5){
+      const chunk=list.slice(i,i+5);
       const settled=await Promise.allSettled(chunk.map(t=>pullK(t.tf,t.lim).then(ca=>({tf:t.tf,ca}))));
       settled.forEach((r,k)=>{
         if(r.status==='fulfilled'){try{res[chunk[k].tf]=analyze(chunk[k].tf,r.value.ca)}catch(e){res[chunk[k].tf]={error:e.message}}}
         else res[chunk[k].tf]={error:r.reason?.message||'Error'};
       });
-      if(i+3<list.length) await sleep(600);
+      if(i+5<list.length) await sleep(800);
     }
   }
   await passK(TFS);
@@ -604,9 +603,14 @@ async function runAll(){
   // snapshot para el Pulso (no se sobrescribe en el Pulso)
   lastReport={ts:Date.now(),price:res[TFS[0].tf]?.price||0,oi,fr,ls,fg:fg.val,
               rsi1m:res['1']?.rsi,rsi5m:res['5']?.rsi,oiChg1h};
-  btn.disabled=false; btn.textContent=mode==='context'?'🔄 Actualizar contexto':'🔄 Actualizar intraday';
-  document.getElementById('btnPulse').disabled=false;
-  isRunning=false;
+  }catch(err){
+    document.getElementById('rbox').textContent='⚠ Error generando el informe: '+(err.message||err)+'\nEspera unos segundos y reintenta.';
+    document.getElementById('reportArea').classList.add('show');
+  }finally{
+    btn.disabled=false; btn.textContent=mode==='context'?'🔄 Actualizar contexto':'🔄 Actualizar intraday';
+    document.getElementById('btnPulse').disabled=false;
+    isRunning=false;
+  }
 }
 
 // ==================== CONSTRUCTOR DEL INFORME ====================
@@ -890,6 +894,7 @@ async function copyReport(){
   setTimeout(()=>b.textContent='📋 Copiar informe completo',2500);
 }
 async function loadPrice(){
+  if(isRunning) return;
   try{
     const d=await byFetch(`${BY}/tickers?category=spot&symbol=${SYM}`,10000);
     const tk=d.result.list[0], chg=+tk.price24hPcnt*100;
