@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="NEAR Report">
 <meta name="theme-color" content="#0d0f14">
-<title>NEAR · Informe</title>
+<title>NEAR · Informe Acumulador</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0d0f14;color:#e8e9ec;font-family:-apple-system,sans-serif;font-size:14px;padding:16px;max-width:680px;margin:0 auto}
@@ -17,26 +17,33 @@ h1{font-size:17px;font-weight:700;margin-bottom:3px}
 .chg{font-size:13px;font-family:monospace}
 .up{color:#2dd4a0}.dn{color:#ff6b6b}
 .time{font-size:11px;color:#6b7080;margin-left:auto}
+.pos-box{background:#13161e;border:.5px solid rgba(45,212,160,.25);border-radius:10px;padding:10px 12px;margin-bottom:12px}
+.pos-title{font-size:11px;font-weight:700;color:#2dd4a0;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.pos-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.pos-field{display:flex;flex-direction:column;gap:3px}
+.pos-field label{font-size:10px;color:#6b7080}
+.pos-field input{background:#0d0f14;border:.5px solid rgba(255,255,255,.12);border-radius:6px;padding:7px 8px;color:#e8e9ec;font-size:13px;font-family:monospace;width:100%}
+.pos-field input:focus{outline:none;border-color:#2dd4a0}
+.pos-toggle{font-size:10px;color:#6b7080;cursor:pointer;font-weight:400;text-transform:none;letter-spacing:0}
 .mode-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
 .mode-btn{padding:12px;border-radius:10px;border:.5px solid rgba(255,255,255,.1);background:#13161e;color:#6b7080;font-size:13px;font-weight:700;cursor:pointer;text-align:center}
 .mode-btn .icon{font-size:20px;display:block;margin-bottom:3px}
 .mode-btn .tfs{font-size:10px;font-weight:400;color:#4a5060;margin-top:2px;display:block}
 .mode-btn.active{border-color:#2dd4a0;background:rgba(45,212,160,.08);color:#2dd4a0}
 .mode-btn.active.full{border-color:#4a9eff;background:rgba(74,158,255,.08);color:#4a9eff}
-.btn{display:block;width:100%;padding:15px;font-size:15px;font-weight:700;border:none;border-radius:10px;cursor:pointer;margin-bottom:10px;min-height:50px}
-.btn-go{background:#2dd4a0;color:#0d0f14}
-.btn-go:disabled{background:#1a3d30;color:#2dd4a0;cursor:wait}
-.btn-copy{background:#13161e;color:#4a9eff;border:.5px solid #4a9eff}
-.btn-pulse{background:#f5a623;color:#0d0f14}
-.btn-pulse:disabled{background:#4a3a18;color:#f5a623;cursor:wait}
 .clock-box{background:#13161e;border:.5px solid rgba(245,166,35,.25);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#9aa0b0;line-height:1.6}
 .clock-box .ck-hot{color:#f5a623;font-weight:700}
 .clock-box .ck-cold{color:#6b7080}
+.btn{display:block;width:100%;padding:15px;font-size:15px;font-weight:700;border:none;border-radius:10px;cursor:pointer;margin-bottom:10px;min-height:50px}
+.btn-go{background:#2dd4a0;color:#0d0f14}
+.btn-go:disabled{background:#1a3d30;color:#2dd4a0;cursor:wait}
+.btn-pulse{background:#f5a623;color:#0d0f14}
+.btn-pulse:disabled{background:#4a3a18;color:#f5a623;cursor:wait}
+.btn-copy{background:#13161e;color:#4a9eff;border:.5px solid #4a9eff}
 .prog-box{background:#13161e;border-radius:10px;padding:14px;margin-bottom:10px;border:.5px solid rgba(255,255,255,.07);display:none}
 .prog-title{font-size:11px;font-weight:700;color:#6b7080;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
 .prog-item{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:13px;color:#4a5060}
 .prog-item.done{color:#2dd4a0}.prog-item.run{color:#f5a623}.prog-item.err{color:#ff6b6b}
-.dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0}
 .report-area{display:none}
 .report-area.show{display:block}
 .hint{background:#1a1d28;border-left:3px solid #f5a623;border-radius:7px;padding:10px 12px;font-size:12px;color:#6b7080;line-height:1.5;margin-bottom:10px}
@@ -48,13 +55,25 @@ h1{font-size:17px;font-weight:700;margin-bottom:3px}
 </head>
 <body>
 
-<h1>NEAR/USDT · Generador de Informe</h1>
-<p class="sub">Datos en tiempo real · Bybit API</p>
+<h1>▲ NEAR/USDT · Informe Acumulador</h1>
+<p class="sub">Datos en tiempo real · Bybit API · BTC integrado como contexto macro</p>
 
 <div class="price-box">
   <span class="price" id="priceEl">Cargando...</span>
   <span class="chg" id="chgEl"></span>
   <span class="time" id="timeEl"></span>
+</div>
+
+<div class="pos-box">
+  <div class="pos-title">
+    <span>Mi posición</span>
+    <span class="pos-toggle" onclick="document.getElementById('posGrid').style.display=document.getElementById('posGrid').style.display==='none'?'grid':'none'">mostrar/ocultar</span>
+  </div>
+  <div class="pos-grid" id="posGrid">
+    <div class="pos-field"><label>Holdings (NEAR)</label><input id="posHold" type="text" inputmode="decimal" placeholder="1200" oninput="savePos()"></div>
+    <div class="pos-field"><label>Reserva (USDC/EUR)</label><input id="posReserve" type="text" inputmode="decimal" placeholder="0" oninput="savePos()"></div>
+    <div class="pos-field"><label>Coste medio ($)</label><input id="posCost" type="text" inputmode="decimal" placeholder="2.47" oninput="savePos()"></div>
+  </div>
 </div>
 
 <div class="mode-row">
@@ -70,9 +89,8 @@ h1{font-size:17px;font-weight:700;margin-bottom:3px}
 
 <div class="clock-box" id="clockBox">Calculando sesión de mercado…</div>
 
-<button class="btn btn-go" id="btnGo" onclick="runAll()">⚡ Generar informe rápido</button>
-
-<button class="btn btn-pulse" id="btnPulse" onclick="runPulse()">⚡ Pulso rápido (qué cambió en 15 min)</button>
+<button class="btn btn-go" id="btnGo" onclick="runAll()">⚡ Generar informe intraday</button>
+<button class="btn btn-pulse" id="btnPulse" onclick="runPulse()">⚡ Pulso rápido (qué cambió)</button>
 
 <div class="prog-box" id="progBox">
   <div class="prog-title">Recopilando datos...</div>
@@ -81,103 +99,128 @@ h1{font-size:17px;font-weight:700;margin-bottom:3px}
 
 <div class="report-area" id="reportArea">
   <div class="hint" id="hintBox">
-    <strong>Listo.</strong> Copia el informe y pégalo en tu agente IA (Qwen, Claude u otro). Incluye ondas de Elliott, Fibonacci, pivotes, futuros, order book y señal de scalping (vender alto / comprar más abajo).
+    <strong>Listo.</strong> Copia el informe y pégalo en tu agente IA (Qwen, Claude u otro).
   </div>
   <button class="btn btn-copy" onclick="copyReport()">📋 Copiar informe completo</button>
   <div class="rbox" id="rbox"></div>
 </div>
 
 <script>
-const BY  = 'https://api.bybit.com/v5/market';
-const SYM = 'NEARUSDT';
+// ==================== CONSTANTES ====================
+const BY = 'https://api.bybit.com/v5/market';
+const SYM = 'NEARUSDT';        // mercado profundo: análisis técnico + futuros
+const SYM_USDC = 'NEARUSDC';   // par que realmente operas (libro de referencia)
+const PRECISION = 4;
 
 const TFS_INTRADAY = [
-  {tf:'1',   lim:100, name:'1 MINUTO'},
-  {tf:'5',   lim:100, name:'5 MINUTOS'},
-  {tf:'15',  lim:100, name:'15 MINUTOS'},
-  {tf:'30',  lim:100, name:'30 MINUTOS'},
-  {tf:'60',  lim:100, name:'1 HORA'},
+  {tf:'1',  lim:100, name:'1 MINUTO'},
+  {tf:'5',  lim:100, name:'5 MINUTOS'},
+  {tf:'15', lim:100, name:'15 MINUTOS'},
+  {tf:'30', lim:100, name:'30 MINUTOS'},
+  {tf:'60', lim:100, name:'1 HORA'},
 ];
 const TFS_CONTEXT = [
-  {tf:'240', lim:80,  name:'4 HORAS'},
-  {tf:'D',   lim:60,  name:'1 DÍA'},
-  {tf:'W',   lim:40,  name:'1 SEMANA'},
-  {tf:'M',   lim:24,  name:'1 MES'},
+  {tf:'240', lim:80, name:'4 HORAS'},
+  {tf:'D',   lim:60, name:'1 DÍA'},
+  {tf:'W',   lim:40, name:'1 SEMANA'},
+  {tf:'M',   lim:24, name:'1 MES'},
 ];
 
+// ==================== ESTADO ====================
 let mode = 'intraday';
 const cache = {};
 let steps = [];
-let lastReport = null; // guarda el informe anterior para comparativo
+let lastReport = null;
+let isRunning = false;
 
-const fp  = (v,d=4) => parseFloat(v).toFixed(d);
-const fp2 = v => parseFloat(v).toFixed(2);
+// ==================== FORMATO ====================
+function fp(v,d){ return parseFloat(v).toFixed(d===undefined?PRECISION:d); }
+function fp2(v){ return parseFloat(v).toFixed(2); }
 function fmtV(v){v=+v;if(v>=1e9)return(v/1e9).toFixed(2)+'B';if(v>=1e6)return(v/1e6).toFixed(2)+'M';if(v>=1e3)return(v/1e3).toFixed(1)+'K';return v.toFixed(0)}
 
-const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-
-async function byFetch(url, ttl=25000){
-  if(cache[url] && Date.now()-cache[url].ts<ttl) return cache[url].d;
-  const work=(async()=>{
-    const ctrl = new AbortController();
-    const t = setTimeout(()=>ctrl.abort(), 12000);
-    try{
-      const r = await fetch(url, {signal:ctrl.signal});
-      clearTimeout(t);
-      const d = await r.json();
-      if(d.retCode!==undefined && d.retCode!==0) throw new Error(d.retMsg||'API error');
-      cache[url]={ts:Date.now(),d};
-      return d;
-    }catch(e){
-      clearTimeout(t);
-      throw e.name==='AbortError'?new Error('Timeout'):e;
-    }
-  })();
-  // Red de seguridad: si fetch queda colgado (timers de Safari congelados en 2º plano),
-  // esta carrera garantiza que byFetch NUNCA se queda esperando para siempre.
-  const raced = await Promise.race([
-    work.then(d=>({d})).catch(e=>({e})),
-    sleep(11000).then(()=>({__t:true}))
-  ]);
-  if(raced.__t) throw new Error('Timeout');
-  if(raced.e) throw raced.e;
-  return raced.d;
+// ==================== POSICIÓN (persistente) ====================
+function savePos(){
+  try{
+    localStorage.setItem('near_pos', JSON.stringify({
+      hold: document.getElementById('posHold').value,
+      reserve: document.getElementById('posReserve').value,
+      cost: document.getElementById('posCost').value
+    }));
+  }catch(e){}
 }
+function loadPos(){
+  try{
+    const p=JSON.parse(localStorage.getItem('near_pos')||'{}');
+    if(p.hold!==undefined) document.getElementById('posHold').value=p.hold;
+    if(p.reserve!==undefined) document.getElementById('posReserve').value=p.reserve;
+    if(p.cost!==undefined) document.getElementById('posCost').value=p.cost;
+  }catch(e){}
+}
+function getPos(){
+  const hold=(document.getElementById('posHold').value||'').trim()||'(sin indicar)';
+  const reserve=(document.getElementById('posReserve').value||'').trim()||'(sin indicar)';
+  const cost=(document.getElementById('posCost').value||'').trim()||'(sin indicar)';
+  return {hold,reserve,cost};
+}
+
+// ==================== MODO ====================
+function setMode(m){
+  if(isRunning) return;
+  mode=m;
+  document.getElementById('modeQ').classList.toggle('active',m==='intraday');
+  document.getElementById('modeF').classList.toggle('active',m==='context');
+  document.getElementById('btnGo').textContent=m==='context'?'🔭 Generar contexto macro':'⚡ Generar informe intraday';
+}
+
+// ==================== RED: TIMEOUT DURO (Promise.race) ====================
+// Safari congela timers y AbortController no dispara con pantalla atenuada.
+// Promise.race garantiza que SIEMPRE se resuelve en X ms.
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+function withHardTimeout(promise, ms){
+  return Promise.race([ promise, sleep(ms).then(()=>({__timeout:true})) ]);
+}
+async function rawFetch(url, ms=8000){
+  const res = await withHardTimeout(fetch(url), ms);
+  if(res && res.__timeout) throw new Error('Timeout');
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  return await res.json();
+}
+// 1 reintento SOLO para timeout/red. NO reintenta errores de API (evita
+// martillear el rate-limit de Bybit, que devuelve retCode != 0).
+async function byFetch(url, ttl=20000){
+  if(cache[url] && Date.now()-cache[url].ts<ttl) return cache[url].d;
+  let data;
+  try{
+    data = await rawFetch(url, 8000);
+  }catch(e){
+    await sleep(400);
+    data = await rawFetch(url, 8000); // segundo y último intento
+  }
+  if(data.retCode!==undefined && data.retCode!==0) throw new Error(data.retMsg||'API error');
+  cache[url]={ts:Date.now(),d:data};
+  return data;
+}
+
+// Máx 3 peticiones concurrentes
+class RateLimiter{
+  constructor(max=3){this.max=max;this.running=0;this.queue=[]}
+  async add(fn){
+    if(this.running>=this.max) await new Promise(r=>this.queue.push(r));
+    this.running++;
+    try{ return await fn() }
+    finally{ this.running--; if(this.queue.length) this.queue.shift()() }
+  }
+}
+const limiter = new RateLimiter(3);
+async function byFetchLimited(url, ttl=15000){ return limiter.add(()=>byFetch(url,ttl)); }
 
 function parseK(list){
   return list.slice().reverse().map(k=>({t:+k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]}));
 }
 
-// Timeout DURO: siempre resuelve (nunca cuelga), aunque el AbortController de Safari no dispare en 2º plano.
-function withHardTimeout(promise, ms){
-  return Promise.race([promise, sleep(ms).then(()=>({__timeout:true}))]);
-}
-// Trae una vela, la analiza, actualiza su paso y nunca deja el flujo colgado (timeout duro + 1 reintento).
-async function fetchOneKline(tf, lim, name){
-  const label=`Vela ${name}`;
-  setStep(label,'run');
-  for(let intento=1;intento<=2;intento++){
-    const r=await withHardTimeout(
-      byFetch(`${BY}/kline?category=spot&symbol=${SYM}&interval=${tf}&limit=${lim}`)
-        .then(d=>({ok:true,ca:parseK(d.result.list)}))
-        .catch(e=>({ok:false,err:e.message||'Error'})),
-      9000
-    );
-    if(r&&r.__timeout){
-      if(intento===2){setStep(label,'err');return {error:'Timeout (red lenta o app en 2º plano)'};}
-    } else if(r.ok){
-      try{const a=analyze(tf,r.ca);setStep(label,'done');return a;}
-      catch(e){setStep(label,'err');return {error:'cálculo: '+(e.message||'fallo')};}
-    } else {
-      if(intento===2){setStep(label,'err');return {error:r.err};}
-    }
-    await sleep(400); // pausa antes de reintentar
-  }
-  setStep(label,'err');
-  return {error:'desconocido'};
-}
-
+// ==================== INDICADORES ====================
 function ema(a,n){const k=2/(n+1);let v=a[0];return a.map((x,i)=>{if(!i)return v;v=x*k+v*(1-k);return v})}
+function sma(a,n){return a.map((_,i)=>i<n-1?null:a.slice(i-n+1,i+1).reduce((x,y)=>x+y,0)/n)}
 function rsi(c,n=14){
   if(c.length<n+2)return new Array(c.length).fill(50);
   let ag=0,al=0;
@@ -191,7 +234,6 @@ function macd(c){const e12=ema(c,12),e26=ema(c,26),line=c.map((_,i)=>e12[i]-e26[
 function bb(c,n=20,k=2){return c.map((_,i)=>{if(i<n-1)return null;const sl=c.slice(i-n+1,i+1),m=sl.reduce((a,b)=>a+b)/n,s=Math.sqrt(sl.reduce((a,b)=>a+(b-m)**2,0)/n);return{up:m+k*s,dn:m-k*s,w:(2*k*s/m)*100}})}
 function atr(ca,n=14){const tr=ca.map((c,i)=>i===0?c.h-c.l:Math.max(c.h-c.l,Math.abs(c.h-ca[i-1].c),Math.abs(c.l-ca[i-1].c)));let a=tr.slice(0,n).reduce((x,y)=>x+y,0)/n;return tr.map((_,i)=>{if(i<n)return null;a=(a*(n-1)+tr[i])/n;return a})}
 function obv(ca){let o=0;return ca.map((c,i)=>{if(!i)return 0;c.c>ca[i-1].c?o+=c.v:c.c<ca[i-1].c&&(o-=c.v);return o})}
-
 function fractals(ca){
   const bu=[],be=[];
   for(let i=2;i<ca.length-2;i++){
@@ -237,188 +279,21 @@ function pearson(a,b){
   for(let i=0;i<n;i++){const da=a[i]-mA,db=b[i]-mB;num+=da*db;dA+=da*da;dB+=db*db}
   return Math.sqrt(dA*dB)<1e-10?0:num/Math.sqrt(dA*dB);
 }
-
 function ichimoku(ca){
   const n=ca.length, i=n-1;
-  const hh=end=>{let m=-Infinity;return p=>{m=-Infinity;for(let k=Math.max(0,end-p+1);k<=end;k++)m=Math.max(m,ca[k].h);return m}};
   const HH=(p,end)=>{let m=-Infinity;for(let k=Math.max(0,end-p+1);k<=end;k++)m=Math.max(m,ca[k].h);return m};
   const LL=(p,end)=>{let m=Infinity;for(let k=Math.max(0,end-p+1);k<=end;k++)m=Math.min(m,ca[k].l);return m};
-  const tenkan=(HH(9,i)+LL(9,i))/2;
-  const kijun=(HH(26,i)+LL(26,i))/2;
+  const tenkan=(HH(9,i)+LL(9,i))/2, kijun=(HH(26,i)+LL(26,i))/2;
   const j=Math.max(0,i-26);
   const spanA=(((HH(9,j)+LL(9,j))/2)+((HH(26,j)+LL(26,j))/2))/2;
   const spanB=(HH(52,j)+LL(52,j))/2;
-  const price=ca[i].c;
-  const top=Math.max(spanA,spanB), bot=Math.min(spanA,spanB);
-  let pos = price>top?'SOBRE NUBE (alcista)':price<bot?'BAJO NUBE (bajista)':'DENTRO NUBE (indecisión)';
+  const price=ca[i].c, top=Math.max(spanA,spanB), bot=Math.min(spanA,spanB);
+  const pos = price>top?'SOBRE NUBE (alcista)':price<bot?'BAJO NUBE (bajista)':'DENTRO NUBE (indecisión)';
   const cloud = spanA>=spanB?'verde (sesgo alcista)':'roja (sesgo bajista)';
   const tk = tenkan>kijun?'Tenkan>Kijun (momentum alcista)':tenkan<kijun?'Tenkan<Kijun (momentum bajista)':'TK plano';
   const fSpanA=(tenkan+kijun)/2, fSpanB=(HH(52,i)+LL(52,i))/2;
   const future = fSpanA>=fSpanB?'futura verde':'futura roja';
   return{valid:n>=52,tenkan,kijun,spanA,spanB,pos,cloud,tk,future};
-}
-
-// ── RELOJ DE MERCADO (100% local, sin API) ──
-function utcToLocal(hUTC,mUTC){
-  const n=new Date();
-  const x=new Date(Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate(),hUTC,mUTC||0));
-  return x.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
-}
-function marketClock(){
-  const d=new Date();
-  const nowMin=d.getUTCHours()*60+d.getUTCMinutes();
-  // Sesiones (en minutos UTC)
-  const inAsia   = nowMin>=0   && nowMin<480;   // 00:00–08:00
-  const inLondon = nowMin>=480 && nowMin<990;   // 08:00–16:30
-  const inNY     = nowMin>=810 && nowMin<1200;  // 13:30–20:00
-  const overlap  = nowMin>=810 && nowMin<990;   // 13:30–16:30 (Londres+NY)
-  const dead     = nowMin>=1200 || nowMin<300;  // 20:00–05:00 (baja liquidez)
-  const sesiones=[];
-  if(inAsia)sesiones.push('Asia');
-  if(inLondon)sesiones.push('Londres');
-  if(inNY)sesiones.push('Nueva York');
-  // Hitos del día
-  const londonOpen=480, nyOpen=810;
-  const hitoTxt=(open,label)=>{
-    if(nowMin<open) return `${label} en ${open-nowMin} min (${utcToLocal(Math.floor(open/60),open%60)})`;
-    if(nowMin<open+60) return `${label} HACE ${nowMin-open} min — ventana caliente`;
-    return null;
-  };
-  const proximos=[hitoTxt(londonOpen,'Apertura Londres'),hitoTxt(nyOpen,'Apertura cash USA (NY)')].filter(Boolean);
-  // Funding Bybit cada 8h: 00:00 / 08:00 / 16:00 UTC
-  const fundings=[0,480,960];
-  const nextFunding=Math.min(...fundings.map(f=>f<=nowMin?f+1440:f));
-  const minsFunding=nextFunding-nowMin;
-  // Cierre de vela diaria 00:00 UTC
-  const minsDaily=((1440-nowMin)%1440)||1440;
-  // Estado / aviso
-  let estado, clase;
-  if(overlap){estado='SOLAPE Londres+NY — máxima volatilidad y stop hunts';clase='ck-hot';}
-  else if(inNY||inLondon){estado='Sesión activa — volatilidad normal/alta';clase='';}
-  else if(dead){estado='Hora muerta — baja liquidez, opera rango (soporte/resistencia), evita rupturas';clase='ck-cold';}
-  else {estado='Transición de sesión';clase='';}
-  return {
-    sesiones, estado, clase, overlap, dead,
-    proximos, minsFunding, minsDaily,
-    nextFundingLocal: utcToLocal(Math.floor((nextFunding%1440)/60),nextFunding%60)
-  };
-}
-function renderClock(){
-  try{
-    const c=marketClock();
-    const el=document.getElementById('clockBox');
-    if(!el)return;
-    const ses=c.sesiones.length?c.sesiones.join(' + '):'—';
-    const prox=c.proximos.length?c.proximos.join(' · '):'sin aperturas próximas';
-    el.innerHTML=`🕒 Sesión: <b>${ses}</b> · <span class="${c.clase}">${c.estado}</span><br>`+
-      `${prox}<br>`+
-      `Funding Bybit en ${c.minsFunding} min (${c.nextFundingLocal}) · Cierre vela diaria en ${Math.floor(c.minsDaily/60)}h ${c.minsDaily%60}m`;
-  }catch(e){}
-}
-function clockReport(){
-  const c=marketClock();
-  const ses=c.sesiones.length?c.sesiones.join(' + '):'ninguna (transición)';
-  let txt=`RELOJ DE MERCADO (hora local del dispositivo):\n`;
-  txt+=`  Sesión activa: ${ses}\n`;
-  txt+=`  Estado: ${c.estado}\n`;
-  if(c.proximos.length) txt+=`  Próximo: ${c.proximos.join(' | ')}\n`;
-  txt+=`  Próximo funding Bybit: en ${c.minsFunding} min (${c.nextFundingLocal})\n`;
-  txt+=`  Cierre vela diaria: en ${Math.floor(c.minsDaily/60)}h ${c.minsDaily%60}m\n`;
-  if(c.overlap) txt+=`  ⚠ Estamos en el solape Londres+NY: esperar movimientos bruscos y barridos de stops.\n`;
-  if(c.dead) txt+=`  ⚠ Hora de baja liquidez: priorizar rango sobre rupturas (más falsas roturas).\n`;
-  return txt;
-}
-
-// ── CLÚSTERES DE LIQUIDACIÓN (estimación local desde precio + apalancamiento) ──
-function liqClusters(price, lsRaw){
-  if(!price) return '';
-  const bands=[{lev:'100x',d:0.010},{lev:'50x',d:0.020},{lev:'25x',d:0.040},{lev:'10x',d:0.100}];
-  const ls=(typeof lsRaw==='number'&&isFinite(lsRaw)&&lsRaw>0)?lsRaw:1;
-  const wLong=ls/(1+ls), wShort=1/(1+ls);
-  const dens=w=>w>0.58?'●●● densa':w>0.45?'●● media':'● ligera';
-  const dn=bands.map(b=>`${b.lev} $${fp(price*(1-b.d))} (-${(b.d*100).toFixed(1)}%)`).join(' | ');
-  const up=bands.map(b=>`${b.lev} $${fp(price*(1+b.d))} (+${(b.d*100).toFixed(1)}%)`).join(' | ');
-  return `CLÚSTERES DE LIQUIDACIÓN (ESTIMADOS — no son posiciones reales):
-  ↓ Imanes BAJISTAS (liquidan LONGS, ${dens(wLong)}): ${dn}
-  ↑ Imanes ALCISTAS (liquidan SHORTS, ${dens(wShort)}): ${up}
-  Modelo teórico desde el precio actual y apalancamiento típico, ponderado por L/S=${fp2(ls)}.
-  El precio tiende a buscar estas zonas (liquidez); densidad mayor = imán más fuerte.`;
-}
-
-// ── VELOCIDAD DE CINTA / TAPE SPEED (delta de volumen agresor) ──
-async function tapeSpeed(){
-  try{
-    const d=await byFetch(`${BY}/recent-trade?category=spot&symbol=${SYM}&limit=60`,5000);
-    const list=d.result.list;
-    if(!list||!list.length) return {ok:false};
-    let buyVol=0,sellVol=0;
-    list.forEach(t=>{const q=(+t.size)*(+t.price); t.side==='Buy'?buyVol+=q:sellVol+=q;});
-    const tot=buyVol+sellVol;
-    const buyPct=tot?buyVol/tot*100:50;
-    const tLast=+list[0].time, tFirst=+list[list.length-1].time;
-    const spanSec=Math.max(1,(tLast-tFirst)/1000);
-    const tps=list.length/spanSec;
-    const delta=buyVol-sellVol;
-    const sig=buyPct>62?'COMPRA agresiva domina (presión alcista)':buyPct<38?'VENTA agresiva domina (presión bajista)':'agresores equilibrados';
-    return {ok:true,buyPct,delta,tps,spanSec,buyVol,sellVol,sig,n:list.length};
-  }catch(e){return {ok:false,err:e.message};}
-}
-function tapeLine(t){
-  if(!t||!t.ok) return 'Velocidad de cinta: N/A';
-  return `Velocidad de cinta (últimas ${t.n} ejec., ${t.spanSec.toFixed(0)}s): `+
-    `agresor compra ${t.buyPct.toFixed(0)}% / venta ${(100-t.buyPct).toFixed(0)}% · `+
-    `delta $${fmtV(Math.abs(t.delta))} ${t.delta>=0?'▲':'▼'} · ${t.tps.toFixed(1)} ejec/s\n  → ${t.sig}`;
-}
-
-// ── TENDENCIA DE FONDO 3D (sintético: Bybit no tiene velas de 3 días) ──
-function sma(a,n){return a.map((_,i)=>i<n-1?null:a.slice(i-n+1,i+1).reduce((x,y)=>x+y,0)/n)}
-function aggregate3D(daily){
-  // Agrupa de 3 en 3 desde la vela más reciente hacia atrás, para que el último bloque
-  // contenga los 3 días más recientes (lo viejo, si queda incompleto, pesa poco).
-  const out=[];
-  for(let end=daily.length; end>0; end-=3){
-    const s=daily.slice(Math.max(0,end-3),end);
-    if(!s.length) break;
-    out.unshift({
-      t:s[0].t, o:s[0].o,
-      h:Math.max(...s.map(c=>c.h)), l:Math.min(...s.map(c=>c.l)),
-      c:s[s.length-1].c, v:s.reduce((a,c)=>a+c.v,0)
-    });
-  }
-  return out;
-}
-async function macro3D(){
-  try{
-    const d=await byFetch(`${BY}/kline?category=spot&symbol=${SYM}&interval=D&limit=200`);
-    const daily=parseK(d.result.list);
-    const c3=aggregate3D(daily);
-    if(c3.length<20) return `TENDENCIA DE FONDO · 3 DÍAS: datos insuficientes (${c3.length} velas)\n`;
-    const cls=c3.map(x=>x.c);
-    const price=cls[cls.length-1];
-    const rsiL=rsi(cls).filter(v=>v!==null).pop()||50;
-    const sma20=sma(cls,20).filter(v=>v!==null).pop();
-    const e20=ema(cls,20).pop();
-    const e50=ema(cls,Math.min(50,cls.length)).pop();
-    const pos=(v)=>price>v?'precio SOBRE':'precio BAJO';
-    const trend = (price>e20&&price>e50&&e20>e50)?'ALCISTA':(price<e20&&price<e50&&e20<e50)?'BAJISTA':'LATERAL/MIXTA';
-    const rsiTxt = rsiL>70?'sobrecompra de fondo':rsiL<30?'sobreventa de fondo':'neutral';
-    const lectura = trend==='ALCISTA'
-      ? 'El fondo acompaña las compras: scalps largos a favor, los cortos son contra-tendencia (más riesgo).'
-      : trend==='BAJISTA'
-      ? 'El fondo pesa a la baja: cautela con los rebotes; comprar es contra-tendencia (más riesgo).'
-      : 'Sin tendencia de fondo clara: prioriza rango (soporte/resistencia) sobre rupturas.';
-    return `───────────────────────────────────────────────────
-TENDENCIA DE FONDO · 3 DÍAS (sintético, ${c3.length} velas de 3D)
-───────────────────────────────────────────────────
-Precio:   $${fp(price)}
-RSI(14):  ${fp2(rsiL)} (${rsiTxt})
-SMA20:    $${fp(sma20,3)} (${pos(sma20)})
-EMA20:    $${fp(e20,3)} (${pos(e20)})  |  EMA50: $${fp(e50,3)} (${pos(e50)})
-Sesgo macro 3D: ${trend}
-Lectura: ${lectura}
-
-`;
-  }catch(e){return `TENDENCIA DE FONDO · 3 DÍAS: error (${e.message||'fallo'})\n\n`;}
 }
 
 function analyze(tf, ca){
@@ -436,141 +311,256 @@ function analyze(tf, ca){
   return{price:last.c,chg,high:Math.max(...ca.map(c=>c.h)),low:Math.min(...ca.map(c=>c.l)),vol:last.v,avgV,volRel:last.v/avgV,rsi:rsiL,hist:histL,bb:bbL,atr:atrL,obv:obvTr,e20:e20[e20.length-1],e50:e50[e50.length-1],e200:e200[e200.length-1],trend,frac:{bu:frac.bu.length,be:frac.be.length},pivs,fib:fibD,pp:ppD,vp:vpD,segs,rows,ichi:ichiD};
 }
 
-function setStep(l,s){const st=steps.find(x=>x.l===l);if(st)st.s=s;document.getElementById('progList').innerHTML=steps.map(s=>`<div class="prog-item ${s.s}">${s.s==='done'?'✓':s.s==='run'?'⟳':s.s==='err'?'✗':'·'} ${s.l}</div>`).join('')}
+// ==================== HTF BTC (contexto macro) ====================
+// Estructura de BTC en diario y semanal: tendencia, EMA200, S/R, RSI.
+// Con beta NEAR/BTC ~1.8x, BTC manda. Es el dato más valioso del informe.
+function htfStruct(ca){
+  const cls=ca.map(c=>c.c), last=ca[ca.length-1].c;
+  const e50=ema(cls,50), e200=ema(cls,Math.min(200,cls.length));
+  const e50L=e50[e50.length-1], e200L=e200[e200.length-1];
+  const rsiL=rsi(cls).filter(v=>v!==null).pop()||50;
+  const validE200 = cls.length>=200;
+  // Soporte/resistencia: máximos y mínimos de fractales recientes
+  const frac=fractals(ca);
+  const recentLows=frac.bu.slice(-4).map(i=>ca[i].l);
+  const recentHighs=frac.be.slice(-4).map(i=>ca[i].h);
+  const sopAbajo=recentLows.filter(p=>p<last).sort((a,b)=>b-a)[0] || Math.min(...ca.slice(-20).map(c=>c.l));
+  const resArriba=recentHighs.filter(p=>p>last).sort((a,b)=>a-b)[0] || Math.max(...ca.slice(-20).map(c=>c.h));
+  const trend = last>e50L && (validE200? last>e200L : true) ? 'ALCISTA'
+              : last<e50L && (validE200? last<e200L : true) ? 'BAJISTA' : 'MIXTA';
+  return {last,e50:e50L,e200:e200L,validE200,rsi:rsiL,sop:sopAbajo,res:resArriba,trend,
+          overE200:validE200?(last>e200L):null};
+}
+function fmtUSD(v){return '$'+Math.round(v).toLocaleString('en-US')}
 
-function setMode(m){
-  mode=m;
-  document.getElementById('modeQ').classList.toggle('active',m==='intraday');
-  document.getElementById('modeF').classList.toggle('active',m==='context');
-  document.getElementById('btnGo').textContent=m==='context'?'🔭 Generar contexto macro':'⚡ Generar informe intraday';
+// ==================== OI × PRECIO ====================
+// Cruce de variación de OI con dirección del precio en la misma ventana.
+function oiPriceRead(oiChgPct, priceChgPct){
+  if(!isFinite(oiChgPct)||!isFinite(priceChgPct)) return 'DATO NO DISPONIBLE';
+  const oUp=oiChgPct>0.5, oDn=oiChgPct<-0.5, pUp=priceChgPct>0.1, pDn=priceChgPct<-0.1;
+  if(oUp&&pUp) return 'OI↑ + precio↑ = LARGOS NUEVOS entrando (tendencia con convicción, pero vigilar sobrecalentamiento)';
+  if(oUp&&pDn) return 'OI↑ + precio↓ = CORTOS NUEVOS entrando (presión bajista con convicción)';
+  if(oDn&&pUp) return 'OI↓ + precio↑ = CIERRE DE CORTOS / short squeeze (subida sin posiciones nuevas, puede agotarse)';
+  if(oDn&&pDn) return 'OI↓ + precio↓ = CIERRE DE LARGOS / long unwind (caída por desapalancamiento, puede agotarse)';
+  return 'OI y precio planos = sin señal direccional clara de derivados';
 }
 
+// ==================== FUNDING TREND ====================
+function fundingTrend(list){
+  // list: array de funding/history (más reciente primero). Devuelve pendiente.
+  if(!list||list.length<3) return null;
+  const vals=list.map(x=>+x.fundingRate*100); // % por periodo
+  const now=vals[0], past=vals[Math.min(vals.length-1,5)];
+  const dir = now>past+0.002?'subiendo (longs cada vez más presionados)'
+            : now<past-0.002?'bajando (alivio para longs / posible giro de sesgo)'
+            : 'estable';
+  return {now,past,dir,n:vals.length};
+}
+
+// ==================== RELOJ DE MERCADO ====================
+function utcToLocal(hUTC,mUTC){
+  const n=new Date();
+  const x=new Date(Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate(),hUTC,mUTC||0));
+  return x.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+}
+function marketClock(){
+  const d=new Date(), nowMin=d.getUTCHours()*60+d.getUTCMinutes();
+  const inAsia=nowMin<480, inLondon=nowMin>=480&&nowMin<990, inNY=nowMin>=810&&nowMin<1200;
+  const overlap=nowMin>=810&&nowMin<990, dead=nowMin>=1200||nowMin<300;
+  const sesiones=[]; if(inAsia)sesiones.push('Asia'); if(inLondon)sesiones.push('Londres'); if(inNY)sesiones.push('Nueva York');
+  const hitoTxt=(open,label)=>{ if(nowMin<open) return `${label} en ${open-nowMin} min (${utcToLocal(Math.floor(open/60),open%60)})`; if(nowMin<open+60) return `${label} HACE ${nowMin-open} min — ventana caliente`; return null; };
+  const proximos=[hitoTxt(480,'Apertura Londres'),hitoTxt(810,'Apertura cash USA (NY)')].filter(Boolean);
+  const fundings=[0,480,960], nextFunding=Math.min(...fundings.map(f=>f<=nowMin?f+1440:f));
+  const minsFunding=nextFunding-nowMin, minsDaily=((1440-nowMin)%1440)||1440;
+  let estado,clase;
+  if(overlap){estado='SOLAPE Londres+NY — máxima volatilidad y stop hunts';clase='ck-hot';}
+  else if(inNY||inLondon){estado='Sesión activa — volatilidad normal/alta';clase='';}
+  else if(dead){estado='Hora muerta — baja liquidez, opera rango, evita rupturas';clase='ck-cold';}
+  else{estado='Transición de sesión';clase='';}
+  return {sesiones,estado,clase,overlap,dead,proximos,minsFunding,minsDaily,nextFundingLocal:utcToLocal(Math.floor((nextFunding%1440)/60),nextFunding%60)};
+}
+function renderClock(){
+  try{
+    const c=marketClock(), el=document.getElementById('clockBox'); if(!el)return;
+    const ses=c.sesiones.length?c.sesiones.join(' + '):'—';
+    const prox=c.proximos.length?c.proximos.join(' · '):'sin aperturas próximas';
+    el.innerHTML=`🕒 Sesión: <b>${ses}</b> · <span class="${c.clase}">${c.estado}</span><br>${prox}<br>Funding Bybit en ${c.minsFunding} min (${c.nextFundingLocal}) · Cierre vela diaria en ${Math.floor(c.minsDaily/60)}h ${c.minsDaily%60}m`;
+  }catch(e){}
+}
+function clockReport(){
+  const c=marketClock(), ses=c.sesiones.length?c.sesiones.join(' + '):'ninguna (transición)';
+  let txt=`RELOJ DE MERCADO (sesiones en UTC, horas mostradas en tu hora local):\n`;
+  txt+=`  Sesión activa: ${ses}\n  Estado: ${c.estado}\n`;
+  if(c.proximos.length) txt+=`  Próximo: ${c.proximos.join(' | ')}\n`;
+  txt+=`  Próximo funding Bybit: en ${c.minsFunding} min (${c.nextFundingLocal})\n`;
+  txt+=`  Cierre vela diaria: en ${Math.floor(c.minsDaily/60)}h ${c.minsDaily%60}m\n`;
+  if(c.overlap) txt+=`  ⚠ Solape Londres+NY: esperar movimientos bruscos y barridos de stops.\n`;
+  if(c.dead) txt+=`  ⚠ Baja liquidez: priorizar rango sobre rupturas (más falsas roturas).\n`;
+  return txt;
+}
+
+// ==================== LIQUIDACIÓN (ESTIMADA) Y TAPE ====================
+function liqClusters(price, lsRaw){
+  if(!price) return '';
+  const bands=[{lev:'100x',d:0.010},{lev:'50x',d:0.020},{lev:'25x',d:0.040},{lev:'10x',d:0.100}];
+  const ls=(typeof lsRaw==='number'&&isFinite(lsRaw)&&lsRaw>0)?lsRaw:1;
+  const wLong=ls/(1+ls), wShort=1/(1+ls);
+  const dens=w=>w>0.58?'●●● densa':w>0.45?'●● media':'● ligera';
+  const dn=bands.map(b=>`${b.lev} $${fp(price*(1-b.d))} (-${(b.d*100).toFixed(1)}%)`).join(' | ');
+  const up=bands.map(b=>`${b.lev} $${fp(price*(1+b.d))} (+${(b.d*100).toFixed(1)}%)`).join(' | ');
+  return `CLÚSTERES DE LIQUIDACIÓN [DERIVADO/ESTIMADO — contexto débil, NO decidir con esto]:
+  ↓ Imanes BAJISTAS (liquidan LONGS, ${dens(wLong)}): ${dn}
+  ↑ Imanes ALCISTAS (liquidan SHORTS, ${dens(wShort)}): ${up}
+  Modelo desde precio actual ponderado por L/S=${fp2(ls)}. NO son posiciones reales.`;
+}
+async function tapeSpeed(){
+  try{
+    const d=await byFetchLimited(`${BY}/recent-trade?category=spot&symbol=${SYM}&limit=50`,5000);
+    const list=d.result.list;
+    if(!list||!list.length) return {ok:false};
+    let buyVol=0,sellVol=0;
+    list.forEach(t=>{const q=(+t.size)*(+t.price); t.side==='Buy'?buyVol+=q:sellVol+=q;});
+    const tot=buyVol+sellVol, buyPct=tot?buyVol/tot*100:50;
+    const tLast=+list[0].time, tFirst=+list[list.length-1].time;
+    const spanSec=Math.max(1,(tLast-tFirst)/1000), tps=list.length/spanSec, delta=buyVol-sellVol;
+    const sig=buyPct>62?'COMPRA agresiva domina':buyPct<38?'VENTA agresiva domina':'agresores equilibrados';
+    return {ok:true,buyPct,delta,tps,spanSec,buyVol,sellVol,sig,n:list.length};
+  }catch(e){return {ok:false,err:e.message};}
+}
+function tapeLine(t){
+  if(!t||!t.ok) return 'Velocidad de cinta: DATO NO DISPONIBLE';
+  return `Velocidad de cinta [MEDIDO] (últimas ${t.n} ejec., ${t.spanSec.toFixed(0)}s): agresor compra ${t.buyPct.toFixed(0)}% / venta ${(100-t.buyPct).toFixed(0)}% · delta $${fmtV(Math.abs(t.delta))} ${t.delta>=0?'▲':'▼'} · ${t.tps.toFixed(1)} ejec/s\n  → ${t.sig}`;
+}
+
+function setStep(l,s){const st=steps.find(x=>x.l===l);if(st)st.s=s;document.getElementById('progList').innerHTML=steps.map(s=>`<div class="prog-item ${s.s}">${s.s==='done'?'✓':s.s==='run'?'⟳':s.s==='err'?'✗':'·'} ${s.l}</div>`).join('')}
+
+// ==================== INFORME COMPLETO ====================
 async function runAll(){
-  const btn=document.getElementById('btnGo');
-  document.getElementById('hintBox').innerHTML='<strong>Listo.</strong> Copia el informe y pégalo en tu agente IA (Qwen, Claude u otro). Incluye reloj de mercado, ondas de Elliott, Fibonacci, pivotes, futuros, clústeres de liquidación, velocidad de cinta y señal de scalping.';
-  btn.disabled=true;btn.textContent='⟳ Recopilando...';
+  if(isRunning) return;
+  isRunning=true;
+  const btn=document.getElementById('btnGo'); btn.disabled=true; btn.textContent='⟳ Recopilando...';
+  document.getElementById('btnPulse').disabled=true;
   document.getElementById('reportArea').classList.remove('show');
   const TFS=mode==='context'?TFS_CONTEXT:TFS_INTRADAY;
   steps=[
-    ...TFS.map(t=>({l:`Vela ${t.name}`,s:'wait'})),
-    ...(mode==='context'?[{l:'Tendencia 3D (sintética)',s:'wait'}]:[]),
-    {l:'BTC/ETH correlación',s:'wait'},
-    {l:'Order book',s:'wait'},
-    {l:'Futuros OI/Funding',s:'wait'},
+    {l:'Velas NEAR',s:'wait'},
+    {l:'Estructura HTF de BTC',s:'wait'},
+    {l:'Order book (par real)',s:'wait'},
+    {l:'Futuros OI/Funding/L-S',s:'wait'},
     {l:'Velocidad de cinta',s:'wait'},
     {l:'Fear & Greed',s:'wait'},
     {l:'Ticker 24h',s:'wait'},
   ];
-  document.getElementById('progBox').style.display='block';
-  setStep(`Vela ${TFS[0].name}`,'wait');
-
+  document.getElementById('progBox').style.display='block'; setStep('Velas NEAR','wait');
   const res={};
 
-  // 1. VELAS — grupos de 2, cada TF con su propio paso, timeout duro y reintento
-  const groups=[];
-  for(let i=0;i<TFS.length;i+=2) groups.push(TFS.slice(i,i+2));
-  for(let gi=0; gi<groups.length; gi++){
-    await Promise.all(groups[gi].map(t=>
-      fetchOneKline(t.tf,t.lim,t.name).then(a=>{res[t.tf]=a;})
-    ));
-    await sleep(0); // cede el hilo: deja repintar el progreso, no congela Safari
-    if(gi<groups.length-1) await sleep(500); // pausa entre grupos para no saturar móvil
+  // 1. VELAS NEAR (grupos de 5)
+  setStep('Velas NEAR','run');
+  for(let i=0;i<TFS.length;i+=5){
+    const chunk=TFS.slice(i,i+5);
+    const settled=await Promise.allSettled(
+      chunk.map(({tf,lim})=>byFetch(`${BY}/kline?category=spot&symbol=${SYM}&interval=${tf}&limit=${lim}`).then(d=>({tf,ca:parseK(d.result.list)})))
+    );
+    settled.forEach((r,k)=>{
+      if(r.status==='fulfilled'){try{res[chunk[k].tf]=analyze(chunk[k].tf,r.value.ca)}catch(e){res[chunk[k].tf]={error:e.message}}}
+      else res[chunk[k].tf]={error:r.reason?.message||'Error'};
+    });
+    if(i+5<TFS.length) await sleep(800);
   }
+  setStep('Velas NEAR',Object.values(res).some(r=>!r.error)?'done':'err');
 
-  // 1b. TENDENCIA DE FONDO 3D (solo modo contexto)
-  let block3D='';
-  if(mode==='context'){
-    setStep('Tendencia 3D (sintética)','run');
-    block3D=await macro3D();
-    setStep('Tendencia 3D (sintética)', block3D.includes('error')||block3D.includes('insuficientes')?'err':'done');
-  }
-
-  // 2. BTC/ETH
-  let corrBTC='N/A',corrETH='N/A',btcP='N/A',ethP='N/A',btcChg='N/A',ethChg='N/A';
-  setStep('BTC/ETH correlación','run');
-  try{
-    const [bD,eD,nD]=await Promise.all([
+  // 2. ESTRUCTURA HTF DE BTC + correlación NEAR/BTC
+  let btcD=null,btcW=null,corrBTC='N/A',btcSpot='N/A',btcChg24='N/A';
+  setStep('Estructura HTF de BTC','run');
+  {
+    const r=await Promise.allSettled([
+      byFetch(`${BY}/kline?category=spot&symbol=BTCUSDT&interval=D&limit=250`),
+      byFetch(`${BY}/kline?category=spot&symbol=BTCUSDT&interval=W&limit=60`),
       byFetch(`${BY}/kline?category=spot&symbol=BTCUSDT&interval=60&limit=48`),
-      byFetch(`${BY}/kline?category=spot&symbol=ETHUSDT&interval=60&limit=48`),
-      byFetch(`${BY}/kline?category=spot&symbol=NEARUSDT&interval=60&limit=48`)
+      byFetch(`${BY}/kline?category=spot&symbol=${SYM}&interval=60&limit=48`),
+      byFetch(`${BY}/tickers?category=spot&symbol=BTCUSDT`)
     ]);
-    const bCA=parseK(bD.result.list),eCA=parseK(eD.result.list),nCA=parseK(nD.result.list);
-    const nR=nCA.map((c,i)=>i===0?0:(c.c-nCA[i-1].c)/nCA[i-1].c);
-    const bR=bCA.map((c,i)=>i===0?0:(c.c-bCA[i-1].c)/bCA[i-1].c);
-    const eR=eCA.map((c,i)=>i===0?0:(c.c-eCA[i-1].c)/eCA[i-1].c);
-    corrBTC=pearson(nR.slice(1),bR.slice(1)).toFixed(3);
-    corrETH=pearson(nR.slice(1),eR.slice(1)).toFixed(3);
-    btcP='$'+Math.round(bCA[bCA.length-1].c).toLocaleString();
-    ethP='$'+Math.round(eCA[eCA.length-1].c).toLocaleString();
-    btcChg=fp2((bCA[bCA.length-1].c-bCA[bCA.length-2].c)/bCA[bCA.length-2].c*100);
-    ethChg=fp2((eCA[eCA.length-1].c-eCA[eCA.length-2].c)/eCA[eCA.length-2].c*100);
-    setStep('BTC/ETH correlación','done');
-  }catch(e){setStep('BTC/ETH correlación','err')}
+    try{ if(r[0].status==='fulfilled') btcD=htfStruct(parseK(r[0].value.result.list)); }catch(e){}
+    try{ if(r[1].status==='fulfilled') btcW=htfStruct(parseK(r[1].value.result.list)); }catch(e){}
+    try{
+      if(r[2].status==='fulfilled'&&r[3].status==='fulfilled'){
+        const bCA=parseK(r[2].value.result.list), nCA=parseK(r[3].value.result.list);
+        const bR=bCA.map((c,i)=>i===0?0:(c.c-bCA[i-1].c)/bCA[i-1].c);
+        const nR=nCA.map((c,i)=>i===0?0:(c.c-nCA[i-1].c)/nCA[i-1].c);
+        corrBTC=pearson(nR.slice(1),bR.slice(1)).toFixed(3);
+      }
+    }catch(e){}
+    try{ if(r[4].status==='fulfilled'){const tk=r[4].value.result.list[0]; btcSpot=fmtUSD(+tk.lastPrice); btcChg24=fp2(+tk.price24hPcnt*100);} }catch(e){}
+    setStep('Estructura HTF de BTC',(btcD||btcW)?'done':'err');
+  }
 
-  // 3. ORDER BOOK
-  let obR='N/A',obSp='N/A',obBid='N/A',obAsk='N/A',obSig='N/A';
-  setStep('Order book','run');
+  // 3. ORDER BOOK — par real USDC con fallback a USDT
+  let obR='N/A',obSp='N/A',obBid='N/A',obAsk='N/A',obSig='N/A',obPair='N/A',obWalls='';
+  setStep('Order book (par real)','run');
   try{
-    const d=await byFetch(`${BY}/orderbook?category=spot&symbol=${SYM}&limit=20`);
-    const bids=d.result.b.slice(0,10).map(b=>[+b[0],+b[1]]);
-    const asks=d.result.a.slice(0,10).map(a=>[+a[0],+a[1]]);
+    let d, used=SYM_USDC;
+    try{
+      d=await byFetch(`${BY}/orderbook?category=spot&symbol=${SYM_USDC}&limit=25`);
+      if(!d.result||!d.result.b||!d.result.b.length){ used=SYM; d=await byFetch(`${BY}/orderbook?category=spot&symbol=${SYM}&limit=25`); }
+    }catch(e){ used=SYM; d=await byFetch(`${BY}/orderbook?category=spot&symbol=${SYM}&limit=25`); }
+    obPair=used;
+    const bids=d.result.b.slice(0,15).map(b=>[+b[0],+b[1]]);
+    const asks=d.result.a.slice(0,15).map(a=>[+a[0],+a[1]]);
     const bLiq=bids.reduce((a,b)=>a+b[0]*b[1],0),aLiq=asks.reduce((a,b)=>a+b[0]*b[1],0);
     const mid=(bids[0][0]+asks[0][0])/2;
     obR=fp2(bLiq/aLiq);
     obSp=fp(Math.abs(asks[0][0]-bids[0][0])/mid*100,4)+'%';
-    obBid='$'+fmtV(bLiq);obAsk='$'+fmtV(aLiq);
-    obSig=bLiq/aLiq>1.2?'BIDS DOMINAN (alcista)':bLiq/aLiq<0.8?'ASKS DOMINAN (bajista)':'EQUILIBRADO';
-    setStep('Order book','done');
-  }catch(e){setStep('Order book','err')}
+    obBid='$'+fmtV(bLiq); obAsk='$'+fmtV(aLiq);
+    obSig=bLiq/aLiq>1.2?'BIDS DOMINAN (compradores)':bLiq/aLiq<0.8?'ASKS DOMINAN (vendedores)':'EQUILIBRADO';
+    const topBids=bids.map(b=>[b[0],b[0]*b[1]]).sort((x,y)=>y[1]-x[1]).slice(0,3);
+    const topAsks=asks.map(a=>[a[0],a[0]*a[1]]).sort((x,y)=>y[1]-x[1]).slice(0,3);
+    obWalls=`  Muros bid: ${topBids.map(b=>`$${fp(b[0])} ($${fmtV(b[1])})`).join(' · ')}\n  Muros ask: ${topAsks.map(a=>`$${fp(a[0])} ($${fmtV(a[1])})`).join(' · ')}`;
+    setStep('Order book (par real)','done');
+  }catch(e){setStep('Order book (par real)','err')}
 
-  // 4. FUTUROS + VARIACIÓN OI
+  // 4. FUTUROS: OI+variación, Funding+tendencia, L/S, precio 1h (para cruce OI×precio)
   let oi='N/A',oiUSD='N/A',fr='N/A',frRaw=0,ls='N/A',lsRaw=1;
-  let oiChg1h='N/A',oiChg4h='N/A',oiChg24h='N/A';
-  setStep('Futuros OI/Funding','run');
+  let oiChg1h=NaN,oiChg4h=NaN,oiChg24h=NaN,fundTr=null,priceChg1h=NaN;
+  setStep('Futuros OI/Funding/L-S','run');
   try{
     const curP=res[TFS[0].tf]?.price||0;
-    const [oiD,frD,lsD,oiHist]=await Promise.all([
-      byFetch(`${BY}/open-interest?category=linear&symbol=${SYM}&intervalTime=1h&limit=1`),
-      byFetch(`${BY}/funding/history?category=linear&symbol=${SYM}&limit=1`),
+    const r=await Promise.allSettled([
+      byFetch(`${BY}/open-interest?category=linear&symbol=${SYM}&intervalTime=1h&limit=25`),
+      byFetch(`${BY}/funding/history?category=linear&symbol=${SYM}&limit=10`),
       byFetch(`${BY}/account-ratio?category=linear&symbol=${SYM}&period=5min&limit=1`),
-      byFetch(`${BY}/open-interest?category=linear&symbol=${SYM}&intervalTime=1h&limit=25`)
+      byFetch(`${BY}/kline?category=spot&symbol=${SYM}&interval=60&limit=2`)
     ]);
-    const oiList=oiHist.result.list;
-    const oiNow=+oiList[0].openInterest;
-    const oi1hAgo=+oiList[Math.min(1,oiList.length-1)].openInterest;
-    const oi4hAgo=+oiList[Math.min(4,oiList.length-1)].openInterest;
-    const oi24hAgo=+oiList[Math.min(24,oiList.length-1)].openInterest;
-    oiChg1h=(((oiNow-oi1hAgo)/oi1hAgo)*100).toFixed(2)+'%';
-    oiChg4h=(((oiNow-oi4hAgo)/oi4hAgo)*100).toFixed(2)+'%';
-    oiChg24h=(((oiNow-oi24hAgo)/oi24hAgo)*100).toFixed(2)+'%';
-    oi=fmtV(oiNow)+' NEAR';oiUSD='$'+fmtV(oiNow*curP);
-    frRaw=+frD.result.list[0].fundingRate*100;
-    fr=(frRaw>=0?'+':'')+frRaw.toFixed(4)+'%';
-    lsRaw=+lsD.result.list[0].buyRatio/+lsD.result.list[0].sellRatio;
-    ls=fp2(lsRaw);
-    setStep('Futuros OI/Funding','done');
-  }catch(e){setStep('Futuros OI/Funding','err')}
+    if(r[0].status==='fulfilled'){
+      const L=r[0].value.result.list, now=+L[0].openInterest;
+      const a1=+L[Math.min(1,L.length-1)].openInterest, a4=+L[Math.min(4,L.length-1)].openInterest, a24=+L[Math.min(24,L.length-1)].openInterest;
+      oiChg1h=(now-a1)/a1*100; oiChg4h=(now-a4)/a4*100; oiChg24h=(now-a24)/a24*100;
+      oi=fmtV(now)+' NEAR'; oiUSD='$'+fmtV(now*curP);
+    }
+    if(r[1].status==='fulfilled'){
+      const L=r[1].value.result.list;
+      frRaw=+L[0].fundingRate*100; fr=(frRaw>=0?'+':'')+frRaw.toFixed(4)+'%';
+      fundTr=fundingTrend(L);
+    }
+    if(r[2].status==='fulfilled'){ const x=r[2].value.result.list[0]; lsRaw=+x.buyRatio/+x.sellRatio; ls=fp2(lsRaw); }
+    if(r[3].status==='fulfilled'){ const k=parseK(r[3].value.result.list); priceChg1h=(k[k.length-1].c-k[0].c)/k[0].c*100; }
+    setStep('Futuros OI/Funding/L-S',(r[0].status==='fulfilled')?'done':'err');
+  }catch(e){setStep('Futuros OI/Funding/L-S','err')}
 
-  // 4b. VELOCIDAD DE CINTA
+  // 5. TAPE
   setStep('Velocidad de cinta','run');
   const tape=await tapeSpeed();
   setStep('Velocidad de cinta',tape.ok?'done':'err');
 
-  // 5. FEAR & GREED (con timeout duro — nunca cuelga el informe)
+  // 6. FEAR & GREED
   let fg={val:'N/A',name:'N/A'};
   setStep('Fear & Greed','run');
   try{
-    const r=await withHardTimeout(
-      fetch('https://api.alternative.me/fng/?limit=1').then(x=>x.json()).catch(e=>({__err:true})),
-      8000
-    );
-    if(r && !r.__timeout && !r.__err && r.data){
-      fg={val:r.data[0].value,name:r.data[0].value_classification};
-      setStep('Fear & Greed','done');
-    } else setStep('Fear & Greed','err');
+    const j=await withHardTimeout(fetch('https://api.alternative.me/fng/?limit=1').then(r=>r.json()),6000);
+    if(j&&!j.__timeout){ fg={val:j.data[0].value,name:j.data[0].value_classification}; setStep('Fear & Greed','done'); }
+    else setStep('Fear & Greed','err');
   }catch(e){setStep('Fear & Greed','err')}
 
-  // 6. TICKER
+  // 7. TICKER
   let t24={h:'N/A',l:'N/A',v:'N/A',vq:'N/A',chg:'N/A'};
   setStep('Ticker 24h','run');
   try{
@@ -586,344 +576,281 @@ async function runAll(){
     setStep('Ticker 24h','done');
   }catch(e){setStep('Ticker 24h','err')}
 
-  // INFORME
+  const R=buildReport(res,TFS,{btcD,btcW,corrBTC,btcSpot,btcChg24,obR,obSp,obBid,obAsk,obSig,obPair,obWalls,oi,oiUSD,fr,frRaw,ls,lsRaw,oiChg1h,oiChg4h,oiChg24h,fundTr,priceChg1h,tape,fg,t24});
+
+  document.getElementById('rbox').textContent=R;
+  document.getElementById('reportArea').classList.add('show');
+  // snapshot para el Pulso (no se sobrescribe en el Pulso)
+  lastReport={ts:Date.now(),price:res[TFS[0].tf]?.price||0,oi,fr,ls,fg:fg.val,
+              rsi1m:res['1']?.rsi,rsi5m:res['5']?.rsi,oiChg1h};
+  btn.disabled=false; btn.textContent=mode==='context'?'🔄 Actualizar contexto':'🔄 Actualizar intraday';
+  document.getElementById('btnPulse').disabled=false;
+  isRunning=false;
+}
+
+// ==================== CONSTRUCTOR DEL INFORME ====================
+function pct(v){return isFinite(v)?(v>=0?'+':'')+v.toFixed(2)+'%':'DATO NO DISPONIBLE'}
+
+function buildReport(res,TFS,D){
   const now=new Date().toLocaleString('es-ES');
+  const pos=getPos();
   const p=res[TFS[0].tf]?.price||0;
+  const tfNames=TFS.map(t=>t.name.toLowerCase().replace(' ','')).join(' · ');
 
   let R=`═══════════════════════════════════════════════════
-NEAR/USDT · INFORME DE ANÁLISIS TÉCNICO
-Modo: ${mode==='context'?'CONTEXTO MACRO (4h · 1d · 1w)':'INTRADAY (1m · 5m · 15m · 30m · 1h)'}
-Fuente: Bybit · Generado: ${now}
+NEAR · INFORME PARA ACUMULADOR DE POSICIÓN
+Modo: ${mode==='context'?'CONTEXTO MACRO':'INTRADAY'} (${tfNames})
+Fuente ÚNICA: Bybit (spot ${SYM} + perpetuos) · Generado: ${now}
 ═══════════════════════════════════════════════════
 
-ESTRATEGIA DEL TRADER:
-  Tipo: SCALPING INTRADÍA SPOT — sin apalancamiento
-  Objetivo: MÁXIMO BENEFICIO rotando capital — VENDER ALTO / COMPRAR MÁS ABAJO
-  No hay objetivo fijo de %: se capturan las oscilaciones del rango intradía
-  Cada venta debe dejar margen suficiente para recomprar más abajo CON beneficio neto
-  Horizonte: minutos / horas (intradía)
-
-INSTRUCCIONES PARA EL ANALISTA IA:
-Eres un analista técnico experto en SCALPING de criptomonedas.
-Analiza TODOS los datos de este informe y responde en español de forma BREVE y ACCIONABLE.
-NO desarrolles el razonamiento ni des explicaciones largas (salvo que se te pida después).
-NO inventes ni asumas NINGÚN objetivo fijo de beneficio (ni +100% ni ningún otro %).
-El único objetivo es vender en máximos locales y recomprar más abajo, captando el rango.
-Da SOLO precios concretos y la acción a tomar, con esta estructura exacta:
-
-── SI TENGO POSICIÓN ABIERTA ──
-• VENDER en: precio exacto del próximo impulso alcista con rentabilidad suficiente
-  (debe dejar margen para recomprar más abajo con beneficio neto)
-• RECOMPRAR en: precio objetivo tras la venta
-• Beneficio estimado de la rotación venta→recompra: en %
-• Señal técnica concreta que dispara la venta
-
-── SI NO TENGO POSICIÓN Y QUIERO COMPRAR ──
-• COMPRAR en: zona/precio exacto de entrada
-• Señal técnica concreta que confirma la entrada
-• VENDER en: precio objetivo de salida tras la compra
-• Invalidación: precio que anula el setup (no comprar / cortar)
-
-── CIERRE OBLIGATORIO ──
-Termina SIEMPRE preguntando textualmente:
-"¿Quieres que te explique mi razonamiento?"
+MI POSICIÓN (input del trader):
+  Holdings NEAR: ${pos.hold}   |   Reserva USDC/EUR: ${pos.reserve}   |   Coste medio: $${pos.cost}
 
 ───────────────────────────────────────────────────
-${clockReport()}───────────────────────────────────────────────────
-DATOS GLOBALES
+ROL Y REGLAS PARA EL ANALISTA IA
 ───────────────────────────────────────────────────
-Precio:        $${fp(p)}
-Máx 24h:       $${t24.h}  |  Mín 24h: $${t24.l}
-Vol 24h:       ${t24.v} NEAR (${t24.vq})
-Cambio 24h:    ${t24.chg}%
-${tapeLine(tape)}
+ROL: Eres analista técnico para un ACUMULADOR DE POSICIÓN spot, sin apalancamiento.
+NO eres scalper. El objetivo NO es operar mucho: es PRESERVAR CAPITAL y ACUMULAR
+más NEAR, capturando rango con rotaciones rentables (vender en fuerza / recomprar
+más abajo). Horizonte: días/semanas, con ajuste fino intradía.
 
-CORRELACIONES (48h · velas 1h):
-  NEAR/BTC: ${corrBTC}  ${+corrBTC>0.7?'(alta — BTC decisivo)':+corrBTC>0.5?'(media)':'(baja)'}
-  NEAR/ETH: ${corrETH}
-  BTC: ${btcP} (${btcChg>=0?'+':''}${btcChg}%)  |  ETH: ${ethP} (${ethChg>=0?'+':''}${ethChg}%)
-  Beta NEAR/BTC estimada: ~1.8x
+CONTEXTO FIJO (intégralo, no lo cuestiones):
+- Activo: NEAR. Núcleo INTOCABLE = los holdings indicados arriba.
+- Coste medio $${pos.cost} → toda venta por debajo de ese precio NO es "TP": es
+  ROTACIÓN/SALIDA. La métrica de éxito son MONEDAS ganadas en la recompra, no el fiat.
+- Sin capital externo nuevo. Liquidez solo en USDC o EUR (USDT no operable, MiCA).
+- Prioridad nº1: construir reserva USDC/EUR vendiendo SOLO en fuerza, NUNCA en
+  debilidad ni sobre soporte.
+- BTC es la correa macro (beta NEAR/BTC ~1,8x). Mira su estructura HTF en este informe.
 
-ORDER BOOK:
-  Ratio Bid/Ask: ${obR}  |  Señal: ${obSig}
-  Liquidez bids: ${obBid}  |  asks: ${obAsk}
-  Spread: ${obSp}
+REGLAS DE DATOS (máxima prioridad):
+- Cada cifra va etiquetada: [MEDIDO] (de la API) / [DERIVADO] (calculado o estimado).
+  Nunca presentes un derivado como medido.
+- Usa EXCLUSIVAMENTE las cifras de ESTE informe para lo técnico. NO recalcules
+  indicadores con otras fuentes (evita el descuadre tipo "EMA200 de otra web").
+- Si un dato dice "DATO NO DISPONIBLE", trátalo como ausente; no lo inventes.
+  Distingue "0,00%" (dato real) de ausente.
+- Heatmap/clústeres de liquidación = DERIVADO, contexto débil. PROHIBIDO basar
+  recompras o invalidación en ellos.
+- CVD no disponible → usa OBV como proxy, diciéndolo.
+- NO uses fechas macro fijas: pídeme verificar el calendario macro EN VIVO por web
+  (IPC/CPI, PCE, FOMC/Powell, NFP, PIB). Igual para unlocks de NEAR y noticias.
 
-FUTUROS (Bybit perpetuos):
-  Open Interest: ${oi} (≈${oiUSD})
-  OI variación:  1h ${oiChg1h} | 4h ${oiChg4h} | 24h ${oiChg24h}
-  ${parseFloat(oiChg1h)>5?'⚠ OI subiendo rápido — posible entrada institucional o squeeze':parseFloat(oiChg1h)<-5?'⚠ OI cayendo — liquidaciones o cierre de posiciones':'OI estable'}
-  Funding Rate:  ${fr}  ${frRaw>0.01?'(longs pagan — sobrecargado)':frRaw<-0.01?'(shorts pagan — posible squeeze)':'(neutral)'}
-  Long/Short:    ${ls}  ${lsRaw>1.2?'(muchos largos — riesgo flush)':lsRaw<0.8?'(muchos cortos — posible squeeze)':'(equilibrado)'}
+JERARQUÍA DE DECISIÓN:
+- Si los datos PRINCIPALES (estructura BTC + tendencia NEAR + nivel clave) se
+  contradicen entre sí → la decisión es ESPERAR. El ruido menor NO bloquea.
 
-${liqClusters(p, lsRaw)}
+FORMATO DE RESPUESTA:
+- Empieza SIEMPRE con VEREDICTO (máx 5 líneas): decisión
+  (COMPRAR / MANTENER / VENDER X% / ESPERAR) · motivo en lenguaje llano · nivel
+  clave + precio de invalidación · confianza 0-100 · línea de rotación si hay posición.
+- Informe completo SOLO si los datos lo justifican. No inventes objetivos de % fijos.
+- Si mi acción propuesta contradice mi plan escrito, dímelo ANTES de nada.
+- Cierra preguntando si desarrollo algún punto.
+
+───────────────────────────────────────────────────
+DATOS GLOBALES — NEAR [MEDIDO]
+───────────────────────────────────────────────────
+Precio:     $${fp(p)}
+Máx 24h:    $${D.t24.h}  |  Mín 24h: $${D.t24.l}
+Vol 24h:    ${D.t24.v} NEAR (${D.t24.vq})
+Cambio 24h: ${D.t24.chg}%
+
+───────────────────────────────────────────────────
+ESTRUCTURA HTF DE BTC (la correa macro) [precio MEDIDO · niveles DERIVADO]
+───────────────────────────────────────────────────
+BTC spot: ${D.btcSpot} (24h ${D.btcChg24>=0?'+':''}${D.btcChg24}%)  ·  Correlación NEAR/BTC (48h): ${D.corrBTC} ${+D.corrBTC>0.7?'(alta — BTC decisivo)':+D.corrBTC>0.5?'(media)':'(baja)'}
+`;
+  const htfLine=(lbl,h)=>{
+    if(!h) return `  ${lbl}: DATO NO DISPONIBLE\n`;
+    const e200txt=h.validE200?`EMA200 ${fmtUSD(h.e200)} ${h.overE200?'SOBRE✓':'BAJO✗'}`:'EMA200 n/d (<200 velas)';
+    return `  ${lbl}: ${h.trend} · precio ${fmtUSD(h.last)} · EMA50 ${fmtUSD(h.e50)} ${h.last>h.e50?'SOBRE✓':'BAJO✗'} · ${e200txt}\n         RSI ${fp2(h.rsi)} · soporte≈${fmtUSD(h.sop)} · resistencia≈${fmtUSD(h.res)}\n`;
+  };
+  R+=htfLine('DIARIO',D.btcD);
+  R+=htfLine('SEMANAL',D.btcW);
+  R+=`  → Con beta ~1,8x: si BTC pierde su nivel clave, NEAR cae ~1,8x más fuerte. Si BTC aguanta sobre soporte, hay margen para rotar NEAR.
+
+───────────────────────────────────────────────────
+ORDER BOOK — par ${D.obPair} [MEDIDO]
+───────────────────────────────────────────────────
+Ratio Bid/Ask: ${D.obR}  |  Señal: ${D.obSig}
+Liquidez bids: ${D.obBid}  |  asks: ${D.obAsk}  |  Spread: ${D.obSp}
+${D.obWalls}
+${D.obPair===SYM?'  ⚠ Libro de NEAR/USDT (no hay datos de USDC o están vacíos). Verifica spread real en NEAR/USDC antes de ejecutar.':'  ✓ Libro del par que operas (USDC).'}
+
+───────────────────────────────────────────────────
+FUTUROS (perpetuos Bybit) [MEDIDO]
+───────────────────────────────────────────────────
+Open Interest: ${D.oi} (≈${D.oiUSD})
+OI variación:  1h ${pct(D.oiChg1h)} | 4h ${pct(D.oiChg4h)} | 24h ${pct(D.oiChg24h)}
+OI × precio (1h): precio 1h ${pct(D.priceChg1h)}
+  → ${oiPriceRead(D.oiChg1h,D.priceChg1h)}
+Funding Rate:  ${D.fr}  ${D.frRaw>0.01?'(longs pagan — sobrecargado)':D.frRaw<-0.01?'(shorts pagan — posible squeeze)':'(neutral)'}
+${D.fundTr?`  Tendencia funding (últimas ${D.fundTr.n} muestras): ${D.fundTr.dir}`:'  Tendencia funding: DATO NO DISPONIBLE'}
+Long/Short:    ${D.ls}  ${D.lsRaw>1.2?'(muchos largos — riesgo flush)':D.lsRaw<0.8?'(muchos cortos — posible squeeze)':'(equilibrado)'}
+
+${liqClusters(p,D.lsRaw)}
+
+${tapeLine(D.tape)}
 
 SENTIMIENTO:
-  Fear & Greed: ${fg.val}/100 — ${fg.name}
+  Fear & Greed [MEDIDO]: ${D.fg.val}/100 — ${D.fg.name}
 
-MACRO (contraste obligatorio):
-  ⚠ Cruza el RELOJ DE MERCADO de arriba con el calendario macro antes de operar.
-  Si tienes acceso a búsqueda web, comprueba para HOY y los próximos 2-3 días:
-    · IPC/CPI EEUU · PCE Core · decisiones, actas y discursos de la FED (FOMC, Powell)
-    · Empleo (NFP), PIB, y cualquier dato de "alto impacto"
-  Regla operativa: si hay un dato de alto impacto en menos de ~60 min, o estamos en el
-  solape Londres+NY, AVÍSALO al inicio de tu respuesta y recomienda reducir/evitar
-  exposición y ensanchar los precios de recompra: puede invalidar cualquier setup.
+${clockReport()}
+MACRO (verificación obligatoria EN VIVO):
+  ⚠ NO hay fechas macro en este informe a propósito. Antes de operar, verifica por web
+  el calendario de HOY y próximos 2-3 días: IPC/CPI, PCE, FOMC/Powell, NFP, PIB.
+  Verifica también: próximo unlock de NEAR (fecha + % circulante) y noticias del activo.
+  Si hay evento de alto impacto inminente → avísalo primero y recomienda reducir exposición.
 
 `;
 
-  R+=block3D;
-
   for(const {tf,name} of TFS){
     const d=res[tf];
-    if(!d||d.error){R+=`[${name}] Error: ${d?.error||'sin datos'}\n\n`;continue}
+    if(!d||d.error){R+=`[${name}] DATO NO DISPONIBLE: ${d?.error||'sin datos'}\n\n`;continue}
     R+=`───────────────────────────────────────────────────
-TF: ${name}
+TF: ${name}  [precio/vol MEDIDO · indicadores DERIVADO]
 ───────────────────────────────────────────────────
 Precio: $${fp(d.price)} (${d.chg>=0?'+':''}${fp2(d.chg)}%)  Máx: $${fp(d.high)}  Mín: $${fp(d.low)}
 Vol: ${fmtV(d.vol)} (${fp2(d.volRel)}x media)  ATR: $${fp(d.atr)}
-
 RSI: ${fp2(d.rsi)} ${d.rsi>70?'⚠SOBRECOMPRADO':d.rsi<30?'⚠SOBREVENDIDO':''}
 MACD hist: ${d.hist>=0?'+':''}${fp2(d.hist)} ${d.hist>0?'▲':'▼'}
 BB: ancho ${fp2(d.bb.w)}% | Upper $${fp(d.bb.up,3)} | Lower $${fp(d.bb.dn,3)}
-EMA20: $${fp(d.e20,3)} ${d.price>d.e20?'SOBRE✓':'BAJO✗'}
-EMA50: $${fp(d.e50,3)} ${d.price>d.e50?'SOBRE✓':'BAJO✗'}
-EMA200: $${fp(d.e200,3)} ${d.price>d.e200?'SOBRE✓':'BAJO✗'}
-OBV: ${d.obv}  |  Tendencia: ${d.trend}
-
-Ichimoku (nube): ${d.ichi.valid?`${d.ichi.pos} · nube ${d.ichi.cloud} · ${d.ichi.tk} · ${d.ichi.future}`:'datos insuficientes (<52 velas)'}
+EMA20 $${fp(d.e20,3)} ${d.price>d.e20?'SOBRE✓':'BAJO✗'} · EMA50 $${fp(d.e50,3)} ${d.price>d.e50?'SOBRE✓':'BAJO✗'} · EMA200 $${fp(d.e200,3)} ${d.price>d.e200?'SOBRE✓':'BAJO✗'}
+OBV (proxy de CVD): ${d.obv}  |  Tendencia: ${d.trend}
+Ichimoku: ${d.ichi.valid?`${d.ichi.pos} · nube ${d.ichi.cloud} · ${d.ichi.tk} · ${d.ichi.future}`:'datos insuficientes (<52 velas)'}
   Tenkan $${fp(d.ichi.tenkan,3)} | Kijun $${fp(d.ichi.kijun,3)} | SpanA $${fp(d.ichi.spanA,3)} | SpanB $${fp(d.ichi.spanB,3)}
-
 Volume Profile: POC $${fp(d.vp.poc)} | VAH $${fp(d.vp.vah)} | VAL $${fp(d.vp.val)}
-
 Fibonacci ($${fp(d.fib.lo)} → $${fp(d.fib.hi)}):
-${d.fib.ret.map(l=>{const pct=((l.p-d.price)/d.price*100);return`  ${(l.r*100).toFixed(1).padStart(5)}% $${fp(l.p)} (${pct>=0?'+':''}${pct.toFixed(1)}%)${Math.abs(pct)<1.5?' ←ACTIVO':''}`}).join('\n')}
+${d.fib.ret.map(l=>{const pc=((l.p-d.price)/d.price*100);return`  ${(l.r*100).toFixed(1).padStart(5)}% $${fp(l.p)} (${pc>=0?'+':''}${pc.toFixed(1)}%)${Math.abs(pc)<1.5?' ←ACTIVO':''}`}).join('\n')}
   Ext: ${d.fib.ext.map(l=>`${(l.r*100).toFixed(0)}%=$${fp(l.p)}`).join(' | ')}
-
-Pivotes: R3=$${fp(d.pp.R3)} R2=$${fp(d.pp.R2)} R1=$${fp(d.pp.R1)} PP=$${fp(d.pp.PP)} S1=$${fp(d.pp.S1)} S2=$${fp(d.pp.S2)} S3=$${fp(d.pp.S3)}
+Pivotes: R3 $${fp(d.pp.R3)} R2 $${fp(d.pp.R2)} R1 $${fp(d.pp.R1)} PP $${fp(d.pp.PP)} S1 $${fp(d.pp.S1)} S2 $${fp(d.pp.S2)} S3 $${fp(d.pp.S3)}
 ${[['R3',d.pp.R3],['R2',d.pp.R2],['R1',d.pp.R1],['PP',d.pp.PP],['S1',d.pp.S1],['S2',d.pp.S2],['S3',d.pp.S3]].filter(([,v])=>Math.abs((v-d.price)/d.price*100)<1.5).map(([k])=>`  ⚡ ${k} ZONA ACTIVA`).join('\n')}
-
 Elliott (${d.pivs.length} pivotes | ${d.frac.bu} suelos | ${d.frac.be} techos):
-${d.pivs.map(p=>`${p.lb}${p.t==='bull'?'▲':'▼'}$${fp(p.p)}`).join(' | ')||'Sin pivotes suficientes'}
-
-Segmentos: ${d.segs.map((s,i)=>`[${i+1}]${s.lb}${s.dir}${Math.abs(s.mv).toFixed(1)}%(${s.bars}v)`).join(' ')||'N/A'}
+${d.pivs.map(pv=>`${pv.lb}${pv.t==='bull'?'▲':'▼'}$${fp(pv.p)}`).join(' | ')||'Sin pivotes suficientes'}
 Similitud fractal: ${d.rows.map(r=>`${r.lbl}:${r.sc}%`).join(' | ')||'N/A'}
 
 `;
   }
 
   R+=`═══════════════════════════════════════════════════
-FIN · NEAR/USDT · ${now}
-Fuente: Bybit API (spot + futuros) + Alternative.me
+FIN · NEAR · ${now} · Fuente única: Bybit
 ═══════════════════════════════════════════════════`;
 
-  // Comparativo con informe anterior
   if(lastReport){
-    const prev=lastReport;
-    const diffMin=Math.round((Date.now()-prev.ts)/60000);
-    const prevP=prev.price;
-    const curP2=res[TFS[0].tf]?.price||0;
-    const priceDiff=((curP2-prevP)/prevP*100).toFixed(2);
+    const diffMin=Math.round((Date.now()-lastReport.ts)/60000);
+    const prevP=lastReport.price, curP=res[TFS[0].tf]?.price||0;
+    const dP=prevP?((curP-prevP)/prevP*100):0;
     R+=`
 
 ═══════════════════════════════════════════════════
 COMPARATIVO CON INFORME ANTERIOR (hace ${diffMin} min)
 ═══════════════════════════════════════════════════
-Precio anterior:  $${fp(prevP)}  →  Ahora: $${fp(curP2)}  (${priceDiff>=0?'+':''}${priceDiff}%)
-OI anterior:      ${prev.oi}  →  Ahora: ${oi}
-Funding anterior: ${prev.fr}  →  Ahora: ${fr}
-L/S anterior:     ${prev.ls}  →  Ahora: ${ls}
-Fear&Greed ant.:  ${prev.fg}  →  Ahora: ${fg.val}/100
-
-CAMBIOS DETECTADOS:
-${Math.abs(+priceDiff)>2?`  ⚡ Precio: movimiento significativo de ${priceDiff}%`:'  · Precio: sin cambio relevante'}
-${prev.fr!==fr?`  ⚡ Funding: cambió de ${prev.fr} a ${fr} — revisar sesgo del mercado`:'  · Funding: sin cambio'}
-${prev.ls!==ls?`  ⚡ Long/Short: cambió de ${prev.ls} a ${ls}`:'  · Long/Short: sin cambio'}
-${parseFloat(oiChg1h)>5?`  ⚠ OI +${oiChg1h} en 1h — posible movimiento fuerte inminente`:''}
-${parseFloat(oiChg1h)<-5?`  ⚠ OI ${oiChg1h} en 1h — liquidaciones o salida de posiciones`:''}`;
+Precio:  $${fp(prevP)} → $${fp(curP)} (${dP>=0?'+':''}${dP.toFixed(2)}%)
+OI:      ${lastReport.oi} → ${D.oi}
+Funding: ${lastReport.fr} → ${D.fr}
+L/S:     ${lastReport.ls} → ${D.ls}
+F&G:     ${lastReport.fg} → ${D.fg.val}
+${Math.abs(dP)>2?`  ⚡ Movimiento de precio significativo (${dP.toFixed(2)}%)`:'  · Precio sin cambio relevante'}
+${lastReport.fr!==D.fr?`  ⚡ Funding cambió ${lastReport.fr} → ${D.fr}`:'  · Funding estable'}
+${isFinite(D.oiChg1h)&&D.oiChg1h>5?`  ⚠ OI +${D.oiChg1h.toFixed(2)}% en 1h — movimiento fuerte inminente`:''}
+${isFinite(D.oiChg1h)&&D.oiChg1h<-5?`  ⚠ OI ${D.oiChg1h.toFixed(2)}% en 1h — liquidaciones/salida`:''}`;
   } else {
-    R+=`
-
-(Primera generación — el próximo informe incluirá comparativo automático con este)`;
+    R+=`\n\n(Primera generación — el próximo informe incluirá comparativo automático)`;
   }
-
-  // Guardar snapshot para próximo comparativo
-  lastReport={
-    ts: Date.now(),
-    price: res[TFS[0].tf]?.price||0,
-    oi, fr, ls,
-    fg: fg.val
-  };
-
-  document.getElementById('rbox').textContent=R;
-  document.getElementById('reportArea').classList.add('show');
-  btn.disabled=false;
-  btn.textContent=mode==='context'?'🔄 Actualizar contexto':'🔄 Actualizar intraday';
+  return R;
 }
 
+// ==================== PULSO RÁPIDO ====================
 async function runPulse(){
-  const btn=document.getElementById('btnPulse');
-  const btnG=document.getElementById('btnGo');
-  btn.disabled=true; btnG.disabled=true;
-  btn.textContent='⟳ Pulso…';
-  document.getElementById('reportArea').classList.remove('show');
-  document.getElementById('hintBox').innerHTML='<strong>PULSO.</strong> Mini-informe rápido para pegar al agente tras el intraday y preguntar: ¿la estructura sigue válida, mantengo o cancelo la recompra?';
-  document.getElementById('progBox').style.display='block';
-  steps=[{l:'Pulso de mercado (datos en caliente)',s:'run'}];
-  setStep('Pulso de mercado (datos en caliente)','run');
-
-  const R2=await Promise.allSettled([
-    byFetch(`${BY}/tickers?category=spot&symbol=${SYM}`,3000),
-    tapeSpeed(),
-    byFetch(`${BY}/orderbook?category=spot&symbol=${SYM}&limit=25`,3000),
-    byFetch(`${BY}/open-interest?category=linear&symbol=${SYM}&intervalTime=5min&limit=4`,3000),
-    byFetch(`${BY}/funding/history?category=linear&symbol=${SYM}&limit=1`,3000),
-    byFetch(`${BY}/account-ratio?category=linear&symbol=${SYM}&period=5min&limit=1`,3000),
-    byFetch(`${BY}/kline?category=spot&symbol=${SYM}&interval=1&limit=50`,3000),
-    byFetch(`${BY}/kline?category=spot&symbol=${SYM}&interval=5&limit=50`,3000),
-  ]);
-  const val=i=>R2[i].status==='fulfilled'?R2[i].value:null;
-
-  // Precio
-  let price=0,chg24='N/A';
-  const tk=val(0);
-  if(tk){const t=tk.result.list[0];price=+t.lastPrice;chg24=fp2(+t.price24hPcnt*100);}
-
-  // Tape
-  const tape=val(1);
-
-  // Order book + paredes
-  let obRatio='N/A',obSig='N/A',wallBid='N/A',wallAsk='N/A';
-  const ob=val(2);
-  if(ob){
-    const bids=ob.result.b.map(x=>[+x[0],+x[1]]), asks=ob.result.a.map(x=>[+x[0],+x[1]]);
-    const bLiq=bids.reduce((a,x)=>a+x[0]*x[1],0), aLiq=asks.reduce((a,x)=>a+x[0]*x[1],0);
-    obRatio=fp2(bLiq/aLiq);
-    obSig=bLiq/aLiq>1.2?'BIDS dominan':bLiq/aLiq<0.8?'ASKS dominan':'equilibrado';
-    const tB=bids.reduce((m,x)=>x[1]>m[1]?x:m,bids[0]), tA=asks.reduce((m,x)=>x[1]>m[1]?x:m,asks[0]);
-    wallBid=`$${fp(tB[0])} (${fmtV(tB[0]*tB[1])})`;
-    wallAsk=`$${fp(tA[0])} (${fmtV(tA[0]*tA[1])})`;
+  if(isRunning) return;
+  if(!lastReport){
+    document.getElementById('hintBox').innerHTML='<strong>Genera primero un informe completo.</strong> El Pulso compara contra el último informe.';
+    document.getElementById('reportArea').classList.add('show');
+    return;
   }
+  isRunning=true;
+  const btn=document.getElementById('btnPulse'); btn.disabled=true; btn.textContent='⟳ Pulso...';
+  document.getElementById('btnGo').disabled=true;
 
-  // OI var 5/15min
-  let oiNow='N/A',oi5='N/A',oi15='N/A';
-  const oiD=val(3);
-  if(oiD){
-    const L=oiD.result.list;
-    const now=+L[0].openInterest;
-    oiNow=fmtV(now)+' NEAR';
-    if(L.length>1) oi5=(((now-+L[1].openInterest)/+L[1].openInterest)*100).toFixed(2)+'%';
-    if(L.length>3) oi15=(((now-+L[3].openInterest)/+L[3].openInterest)*100).toFixed(2)+'%';
-  }
+  let price=lastReport.price,rsi1m=NaN,rsi5m=NaN;
+  let oiChg1h=NaN,fr='N/A',ls='N/A',lsRaw=1,obR='N/A',obSig='N/A',obWalls='';
+  try{
+    const r=await Promise.allSettled([
+      byFetch(`${BY}/kline?category=spot&symbol=${SYM}&interval=1&limit=60`,5000),
+      byFetch(`${BY}/kline?category=spot&symbol=${SYM}&interval=5&limit=60`,5000),
+      byFetch(`${BY}/open-interest?category=linear&symbol=${SYM}&intervalTime=1h&limit=2`,8000),
+      byFetch(`${BY}/funding/history?category=linear&symbol=${SYM}&limit=1`,8000),
+      byFetch(`${BY}/account-ratio?category=linear&symbol=${SYM}&period=5min&limit=1`,8000),
+      byFetch(`${BY}/orderbook?category=spot&symbol=${SYM}&limit=25`,8000)
+    ]);
+    if(r[0].status==='fulfilled'){const k=parseK(r[0].value.result.list);price=k[k.length-1].c;rsi1m=rsi(k.map(c=>c.c)).filter(v=>v!==null).pop();}
+    if(r[1].status==='fulfilled'){const k=parseK(r[1].value.result.list);rsi5m=rsi(k.map(c=>c.c)).filter(v=>v!==null).pop();}
+    if(r[2].status==='fulfilled'){const L=r[2].value.result.list;const now=+L[0].openInterest,a1=+L[Math.min(1,L.length-1)].openInterest;oiChg1h=(now-a1)/a1*100;}
+    if(r[3].status==='fulfilled'){const v=+r[3].value.result.list[0].fundingRate*100;fr=(v>=0?'+':'')+v.toFixed(4)+'%';}
+    if(r[4].status==='fulfilled'){const x=r[4].value.result.list[0];lsRaw=+x.buyRatio/+x.sellRatio;ls=fp2(lsRaw);}
+    if(r[5].status==='fulfilled'){
+      const d=r[5].value.result, bids=d.b.slice(0,15).map(b=>[+b[0],+b[1]]), asks=d.a.slice(0,15).map(a=>[+a[0],+a[1]]);
+      const bLiq=bids.reduce((a,b)=>a+b[0]*b[1],0),aLiq=asks.reduce((a,b)=>a+b[0]*b[1],0);
+      obR=fp2(bLiq/aLiq); obSig=bLiq/aLiq>1.2?'BIDS DOMINAN':bLiq/aLiq<0.8?'ASKS DOMINAN':'EQUILIBRADO';
+      const tB=bids.map(b=>[b[0],b[0]*b[1]]).sort((x,y)=>y[1]-x[1]).slice(0,3);
+      const tA=asks.map(a=>[a[0],a[0]*a[1]]).sort((x,y)=>y[1]-x[1]).slice(0,3);
+      obWalls=`  Muros bid: ${tB.map(b=>`$${fp(b[0])} ($${fmtV(b[1])})`).join(' · ')}\n  Muros ask: ${tA.map(a=>`$${fp(a[0])} ($${fmtV(a[1])})`).join(' · ')}`;
+    }
+  }catch(e){}
+  const tape=await tapeSpeed();
 
-  // Funding / LS
-  let fr='N/A',ls='N/A',lsRaw=1;
-  const frD=val(4);
-  if(frD){const r=+frD.result.list[0].fundingRate*100; fr=(r>=0?'+':'')+r.toFixed(4)+'%';}
-  const lsD=val(5);
-  if(lsD){lsRaw=+lsD.result.list[0].buyRatio/+lsD.result.list[0].sellRatio; ls=fp2(lsRaw);}
-
-  // RSI 1m / 5m + posición EMA20
-  const rsiPos=(kd)=>{
-    if(!kd) return {rsi:'N/A',ema:'N/A'};
-    const ca=parseK(kd.result.list), cls=ca.map(c=>c.c);
-    const rv=rsi(cls).filter(v=>v!==null).pop();
-    const e=ema(cls,20).pop();
-    const last=cls[cls.length-1];
-    return {rsi:rv!=null?fp2(rv):'N/A', ema:last>e?'sobre EMA20✓':'bajo EMA20✗'};
-  };
-  const r1=rsiPos(val(6)), r5=rsiPos(val(7));
-
-  setStep('Pulso de mercado (datos en caliente)',price?'done':'err');
-
-  const now=new Date().toLocaleString('es-ES');
-  const c=marketClock();
-  const sesTxt=c.sesiones.length?c.sesiones.join(' + '):'transición';
+  const now=new Date().toLocaleString('es-ES'), diffMin=Math.round((Date.now()-lastReport.ts)/60000);
+  const dP=lastReport.price?((price-lastReport.price)/lastReport.price*100):0;
+  const dRsi1=isFinite(rsi1m)&&isFinite(lastReport.rsi1m)?(rsi1m-lastReport.rsi1m):NaN;
+  const dRsi5=isFinite(rsi5m)&&isFinite(lastReport.rsi5m)?(rsi5m-lastReport.rsi5m):NaN;
 
   let R=`═══════════════════════════════════════════════════
-NEAR/USDT · PULSO RÁPIDO (seguimiento intradía)
-Generado: ${now}
+NEAR · PULSO RÁPIDO (vs informe de hace ${diffMin} min)
+${now} · Fuente: Bybit · NO sustituye al informe completo
 ═══════════════════════════════════════════════════
+Instrucción IA: di SOLO qué ha cambiado y si altera el plan. VEREDICTO en 3 líneas máx.
 
-INSTRUCCIÓN AL AGENTE IA:
-Este es un PULSO de seguimiento, NO un informe completo. Compáralo con el último
-informe intraday que te pasé. Dime BREVE y SOLO esto:
-  1) ¿La estructura sigue válida o ha cambiado?
-  2) ¿Mantengo o cancelo mi orden de recompra / venta pendiente?
-  3) Si algo se ha roto, nuevo precio de acción.
-NO inventes objetivos de % fijos. Termina preguntando: "¿Quieres que lo desarrolle?"
-
-RELOJ: ${sesTxt} · ${c.estado}
-  Funding en ${c.minsFunding} min · cierre diario en ${Math.floor(c.minsDaily/60)}h ${c.minsDaily%60}m
-
-PRECIO AHORA:   $${fp(price)} (24h ${chg24}%)
+PRECIO:   $${fp(lastReport.price)} → $${fp(price)} (${dP>=0?'+':''}${dP.toFixed(2)}%)
+RSI 1m:   ${isFinite(lastReport.rsi1m)?fp2(lastReport.rsi1m):'n/d'} → ${isFinite(rsi1m)?fp2(rsi1m):'n/d'} ${isFinite(dRsi1)?`(${dRsi1>=0?'+':''}${dRsi1.toFixed(1)})`:''}
+RSI 5m:   ${isFinite(lastReport.rsi5m)?fp2(lastReport.rsi5m):'n/d'} → ${isFinite(rsi5m)?fp2(rsi5m):'n/d'} ${isFinite(dRsi5)?`(${dRsi5>=0?'+':''}${dRsi5.toFixed(1)})`:''}
+OI 1h:    ${pct(oiChg1h)}  ${isFinite(oiChg1h)&&Math.abs(oiChg1h)>5?'⚠ movimiento fuerte':''}
+Funding:  ${lastReport.fr} → ${fr} ${lastReport.fr!==fr?'⚡ cambió':''}
+L/S:      ${lastReport.ls} → ${ls}
+ORDER BOOK: ratio ${obR} · ${obSig}
+${obWalls}
 ${tapeLine(tape)}
 
-MOMENTUM RÁPIDO:
-  RSI 1m: ${r1.rsi} ${r1.ema}   |   RSI 5m: ${r5.rsi} ${r5.ema}
-
-FUTUROS EN CALIENTE:
-  OI: ${oiNow}  ·  var 5min ${oi5} · var 15min ${oi15}
-  ${parseFloat(oi15)>3?'⚠ OI subiendo fuerte (15m) — entrada de posiciones, posible impulso':parseFloat(oi15)<-3?'⚠ OI cayendo (15m) — cierres/liquidaciones':'OI estable (15m)'}
-  Funding: ${fr}  ·  Long/Short: ${ls}
-
-ORDER BOOK (paredes ahora):
-  Ratio bid/ask: ${obRatio} (${obSig})
-  Pared compra (soporte): ${wallBid}
-  Pared venta (resistencia): ${wallAsk}
-
-${liqClusters(price, lsRaw)}`;
-
-  if(lastReport){
-    const diffMin=Math.round((Date.now()-lastReport.ts)/60000);
-    const pd=lastReport.price?((price-lastReport.price)/lastReport.price*100).toFixed(2):'N/A';
-    R+=`
-
-───────────────────────────────────────────────────
-CAMBIOS DESDE EL ÚLTIMO INFORME COMPLETO (hace ${diffMin} min)
-───────────────────────────────────────────────────
-Precio:  $${fp(lastReport.price)} → $${fp(price)}  (${pd>=0?'+':''}${pd}%)
-Funding: ${lastReport.fr} → ${fr}
-L/S:     ${lastReport.ls} → ${ls}
-${Math.abs(+pd)>1.5?`  ⚡ Movimiento de precio relevante (${pd}%) — revisar si el setup sigue vivo`:'  · Precio sin cambio relevante desde el informe'}
-${lastReport.fr!==fr?'  ⚡ Funding ha cambiado — posible giro de sesgo':'  · Funding estable'}`;
-  } else {
-    R+=`
-
-(No hay informe completo previo en esta sesión para comparar — genera primero un Intraday.)`;
-  }
-
-  R+=`
-
-═══════════════════════════════════════════════════
-FIN · PULSO · ${now}
+CLAVES:
+${Math.abs(dP)>1.5?`  ⚡ Precio se ha movido ${dP.toFixed(2)}% desde el informe`:'  · Precio estable desde el informe'}
+${isFinite(oiChg1h)&&oiChg1h>5?'  ⚠ OI subiendo fuerte — posible impulso':''}
+${isFinite(oiChg1h)&&oiChg1h<-5?'  ⚠ OI cayendo — desapalancamiento/liquidaciones':''}
+${lastReport.fr!==fr?'  ⚡ El funding ha cambiado — revisa sesgo de derivados':''}
 ═══════════════════════════════════════════════════`;
 
+  document.getElementById('hintBox').innerHTML='<strong>Pulso listo.</strong> Comparado con tu último informe completo (que NO se ha borrado).';
   document.getElementById('rbox').textContent=R;
   document.getElementById('reportArea').classList.add('show');
-  btn.disabled=false; btnG.disabled=false;
-  btn.textContent='⚡ Pulso rápido (qué cambió en 15 min)';
+  btn.disabled=false; btn.textContent='⚡ Pulso rápido (qué cambió)';
+  document.getElementById('btnGo').disabled=false;
+  isRunning=false;
 }
 
+// ==================== COPIAR / PRECIO / INIT ====================
 async function copyReport(){
   const txt=document.getElementById('rbox').textContent;
-  try{
-    await navigator.clipboard.writeText(txt);
-  }catch(e){
-    const ta=document.createElement('textarea');
-    ta.value=txt;ta.style.cssText='position:fixed;opacity:0';
-    document.body.appendChild(ta);ta.select();document.execCommand('copy');
-    document.body.removeChild(ta);
+  try{ await navigator.clipboard.writeText(txt); }
+  catch(e){
+    const ta=document.createElement('textarea'); ta.value=txt; ta.style.cssText='position:fixed;opacity:0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
   }
-  const b=document.querySelector('.btn-copy');
-  b.textContent='✓ Copiado!';
+  const b=document.querySelector('.btn-copy'); b.textContent='✓ Copiado!';
   setTimeout(()=>b.textContent='📋 Copiar informe completo',2500);
 }
-
 async function loadPrice(){
   try{
     const d=await byFetch(`${BY}/tickers?category=spot&symbol=${SYM}`,10000);
-    const tk=d.result.list[0],chg=+tk.price24hPcnt*100;
+    const tk=d.result.list[0], chg=+tk.price24hPcnt*100;
     document.getElementById('priceEl').textContent='$'+fp(+tk.lastPrice);
     document.getElementById('priceEl').style.color=chg>=0?'#2dd4a0':'#ff6b6b';
     document.getElementById('chgEl').textContent=(chg>=0?'+':'')+fp2(chg)+'%';
@@ -932,9 +859,10 @@ async function loadPrice(){
   }catch(e){document.getElementById('priceEl').textContent='Sin conexión'}
 }
 
+loadPos();
 loadPrice();
-setInterval(loadPrice,15000);
 renderClock();
+setInterval(loadPrice,15000);
 setInterval(renderClock,30000);
 </script>
 </body>
