@@ -71,7 +71,7 @@ h1{font-size:17px;font-weight:700;margin-bottom:3px}
   </div>
   <div class="pos-grid" id="posGrid">
     <div class="pos-field"><label>Holdings (NEAR)</label><input id="posHold" type="text" inputmode="decimal" placeholder="1200" oninput="savePos()"></div>
-    <div class="pos-field"><label>Reserva (USDC/EUR)</label><input id="posReserve" type="text" inputmode="decimal" placeholder="0" oninput="savePos()"></div>
+    <div class="pos-field"><label>Reserva (USDC)</label><input id="posReserve" type="text" inputmode="decimal" placeholder="0" oninput="savePos()"></div>
     <div class="pos-field"><label>Coste medio ($)</label><input id="posCost" type="text" inputmode="decimal" placeholder="2.47" oninput="savePos()"></div>
   </div>
 </div>
@@ -179,7 +179,7 @@ const sleep = ms => new Promise(r=>setTimeout(r,ms));
 function withHardTimeout(promise, ms){
   return Promise.race([ promise, sleep(ms).then(()=>({__timeout:true})) ]);
 }
-async function rawFetch(url, ms=8000){
+async function rawFetch(url, ms=12000){
   const res = await withHardTimeout(fetch(url), ms);
   if(res && res.__timeout) throw new Error('Timeout');
   if(!res.ok) throw new Error('HTTP '+res.status);
@@ -191,10 +191,10 @@ async function byFetch(url, ttl=20000){
   if(cache[url] && Date.now()-cache[url].ts<ttl) return cache[url].d;
   let data;
   try{
-    data = await rawFetch(url, 8000);
+    data = await rawFetch(url, 12000);
   }catch(e){
     await sleep(400);
-    data = await rawFetch(url, 8000); // segundo y último intento
+    data = await rawFetch(url, 12000); // segundo y último intento
   }
   if(data.retCode!==undefined && data.retCode!==0) throw new Error(data.retMsg||'API error');
   cache[url]={ts:Date.now(),d:data};
@@ -434,6 +434,19 @@ function tapeLine(t){
 
 function setStep(l,s){const st=steps.find(x=>x.l===l);if(st)st.s=s;document.getElementById('progList').innerHTML=steps.map(s=>`<div class="prog-item ${s.s}">${s.s==='done'?'✓':s.s==='run'?'⟳':s.s==='err'?'✗':'·'} ${s.l}</div>`).join('')}
 
+// ==================== FACTOR DE CONVERSIÓN USDC ====================
+// Operas NEAR/USDC pero el análisis usa NEAR/USDT (mercado profundo).
+// Factor = precio del par USDCUSDT = cuántos USDT vale 1 USDC (~1.000).
+// precio_USDC = precio_USDT / factor
+async function usdcFactor(){
+  try{
+    const d=await byFetch(`${BY}/tickers?category=spot&symbol=USDCUSDT`,60000);
+    const x=+d.result.list[0].lastPrice;
+    if(isFinite(x)&&x>0.9&&x<1.1) return {f:x,ok:true};
+  }catch(e){}
+  return {f:1,ok:false};
+}
+
 // ==================== INFORME COMPLETO ====================
 async function runAll(){
   if(isRunning) return;
@@ -454,19 +467,26 @@ async function runAll(){
   document.getElementById('progBox').style.display='block'; setStep('Velas NEAR','wait');
   const res={};
 
-  // 1. VELAS NEAR (grupos de 5)
+  // 1. VELAS NEAR — grupos de 3 (menos pico en arranque frío) + 2ª pasada de fallidos
   setStep('Velas NEAR','run');
-  for(let i=0;i<TFS.length;i+=5){
-    const chunk=TFS.slice(i,i+5);
-    const settled=await Promise.allSettled(
-      chunk.map(({tf,lim})=>byFetch(`${BY}/kline?category=spot&symbol=${SYM}&interval=${tf}&limit=${lim}`).then(d=>({tf,ca:parseK(d.result.list)})))
-    );
-    settled.forEach((r,k)=>{
-      if(r.status==='fulfilled'){try{res[chunk[k].tf]=analyze(chunk[k].tf,r.value.ca)}catch(e){res[chunk[k].tf]={error:e.message}}}
-      else res[chunk[k].tf]={error:r.reason?.message||'Error'};
-    });
-    if(i+5<TFS.length) await sleep(800);
+  async function pullK(tf,lim){
+    const d=await byFetch(`${BY}/kline?category=spot&symbol=${SYM}&interval=${tf}&limit=${lim}`);
+    return parseK(d.result.list);
   }
+  async function passK(list){
+    for(let i=0;i<list.length;i+=3){
+      const chunk=list.slice(i,i+3);
+      const settled=await Promise.allSettled(chunk.map(t=>pullK(t.tf,t.lim).then(ca=>({tf:t.tf,ca}))));
+      settled.forEach((r,k)=>{
+        if(r.status==='fulfilled'){try{res[chunk[k].tf]=analyze(chunk[k].tf,r.value.ca)}catch(e){res[chunk[k].tf]={error:e.message}}}
+        else res[chunk[k].tf]={error:r.reason?.message||'Error'};
+      });
+      if(i+3<list.length) await sleep(600);
+    }
+  }
+  await passK(TFS);
+  const fallidos=TFS.filter(t=>res[t.tf] && res[t.tf].error);   // reintenta SOLO los caídos
+  if(fallidos.length){ await sleep(800); await passK(fallidos); }
   setStep('Velas NEAR',Object.values(res).some(r=>!r.error)?'done':'err');
 
   // 2. ESTRUCTURA HTF DE BTC + correlación NEAR/BTC
@@ -576,7 +596,8 @@ async function runAll(){
     setStep('Ticker 24h','done');
   }catch(e){setStep('Ticker 24h','err')}
 
-  const R=buildReport(res,TFS,{btcD,btcW,corrBTC,btcSpot,btcChg24,obR,obSp,obBid,obAsk,obSig,obPair,obWalls,oi,oiUSD,fr,frRaw,ls,lsRaw,oiChg1h,oiChg4h,oiChg24h,fundTr,priceChg1h,tape,fg,t24});
+  const usdc=await usdcFactor();
+  const R=buildReport(res,TFS,{btcD,btcW,corrBTC,btcSpot,btcChg24,obR,obSp,obBid,obAsk,obSig,obPair,obWalls,oi,oiUSD,fr,frRaw,ls,lsRaw,oiChg1h,oiChg4h,oiChg24h,fundTr,priceChg1h,tape,fg,t24,usdcF:usdc.f,usdcOk:usdc.ok});
 
   document.getElementById('rbox').textContent=R;
   document.getElementById('reportArea').classList.add('show');
@@ -596,6 +617,15 @@ function buildReport(res,TFS,D){
   const pos=getPos();
   const p=res[TFS[0].tf]?.price||0;
   const tfNames=TFS.map(t=>t.name.toLowerCase().replace(' ','')).join(' · ');
+  // Conversión a USDC (par real)
+  const u = v => fp(v/D.usdcF);
+  const rd = res[TFS[0].tf];
+  const usdcNote = D.usdcOk?'':' · ASUMIDO 1:1 (par USDCUSDT no disponible)';
+  let usdcLevels = `  Precio:  $${fp(p)} USDT  →  $${u(p)} USDC`;
+  if(rd && !rd.error){
+    usdcLevels += `\n  POC: $${fp(rd.vp.poc)}→$${u(rd.vp.poc)}  ·  VAH: $${fp(rd.vp.vah)}→$${u(rd.vp.vah)}  ·  VAL: $${fp(rd.vp.val)}→$${u(rd.vp.val)}`;
+    usdcLevels += `\n  Pivotes: R1 $${fp(rd.pp.R1)}→$${u(rd.pp.R1)}  ·  PP $${fp(rd.pp.PP)}→$${u(rd.pp.PP)}  ·  S1 $${fp(rd.pp.S1)}→$${u(rd.pp.S1)}`;
+  }
 
   let R=`═══════════════════════════════════════════════════
 NEAR · INFORME PARA ACUMULADOR DE POSICIÓN
@@ -604,7 +634,7 @@ Fuente ÚNICA: Bybit (spot ${SYM} + perpetuos) · Generado: ${now}
 ═══════════════════════════════════════════════════
 
 MI POSICIÓN (input del trader):
-  Holdings NEAR: ${pos.hold}   |   Reserva USDC/EUR: ${pos.reserve}   |   Coste medio: $${pos.cost}
+  Holdings NEAR: ${pos.hold}   |   Reserva USDC: ${pos.reserve}   |   Coste medio: $${pos.cost}
 
 ───────────────────────────────────────────────────
 ROL Y REGLAS PARA EL ANALISTA IA
@@ -618,8 +648,8 @@ CONTEXTO FIJO (intégralo, no lo cuestiones):
 - Activo: NEAR. Núcleo INTOCABLE = los holdings indicados arriba.
 - Coste medio $${pos.cost} → toda venta por debajo de ese precio NO es "TP": es
   ROTACIÓN/SALIDA. La métrica de éxito son MONEDAS ganadas en la recompra, no el fiat.
-- Sin capital externo nuevo. Liquidez solo en USDC o EUR (USDT no operable, MiCA).
-- Prioridad nº1: construir reserva USDC/EUR vendiendo SOLO en fuerza, NUNCA en
+- Sin capital externo nuevo. Liquidez solo en USDC (operas el par NEAR/USDC).
+- Prioridad nº1: construir reserva USDC vendiendo SOLO en fuerza, NUNCA en
   debilidad ni sobre soporte.
 - BTC es la correa macro (beta NEAR/BTC ~1,8x). Mira su estructura HTF en este informe.
 
@@ -635,6 +665,12 @@ REGLAS DE DATOS (máxima prioridad):
 - CVD no disponible → usa OBV como proxy, diciéndolo.
 - NO uses fechas macro fijas: pídeme verificar el calendario macro EN VIVO por web
   (IPC/CPI, PCE, FOMC/Powell, NFP, PIB). Igual para unlocks de NEAR y noticias.
+
+PAR OPERADO (conversión a USDC):
+- Operas NEAR/USDC. Los precios de este informe están en USDT (mercado profundo).
+- Factor: 1 USDC = ${fp(D.usdcF,4)} USDT. precio_USDC = precio_USDT / ${fp(D.usdcF,4)}.
+- Da TUS niveles de acción (compra/venta/recompra/invalidación) EN USDC. Tienes la
+  equivalencia de los niveles clave en la sección EQUIVALENCIA más abajo.
 
 JERARQUÍA DE DECISIÓN:
 - Si los datos PRINCIPALES (estructura BTC + tendencia NEAR + nivel clave) se
@@ -655,6 +691,12 @@ Precio:     $${fp(p)}
 Máx 24h:    $${D.t24.h}  |  Mín 24h: $${D.t24.l}
 Vol 24h:    ${D.t24.v} NEAR (${D.t24.vq})
 Cambio 24h: ${D.t24.chg}%
+
+───────────────────────────────────────────────────
+EQUIVALENCIA EN TU PAR NEAR/USDC  [factor 1 USDC = ${fp(D.usdcF,4)} USDT${usdcNote}]
+───────────────────────────────────────────────────
+${usdcLevels}
+  (Diferencia USDT↔USDC suele ser de céntimos; el factor la captura si el mercado se desvía.)
 
 ───────────────────────────────────────────────────
 ESTRUCTURA HTF DE BTC (la correa macro) [precio MEDIDO · niveles DERIVADO]
@@ -851,11 +893,17 @@ async function loadPrice(){
   try{
     const d=await byFetch(`${BY}/tickers?category=spot&symbol=${SYM}`,10000);
     const tk=d.result.list[0], chg=+tk.price24hPcnt*100;
-    document.getElementById('priceEl').textContent='$'+fp(+tk.lastPrice);
+    let pr=+tk.lastPrice, unit='USDT';
+    try{
+      const uu=await byFetch(`${BY}/tickers?category=spot&symbol=USDCUSDT`,60000);
+      const f=+uu.result.list[0].lastPrice;
+      if(isFinite(f)&&f>0.9&&f<1.1){ pr=pr/f; unit='USDC'; }
+    }catch(e){}
+    document.getElementById('priceEl').textContent='$'+fp(pr);
     document.getElementById('priceEl').style.color=chg>=0?'#2dd4a0':'#ff6b6b';
     document.getElementById('chgEl').textContent=(chg>=0?'+':'')+fp2(chg)+'%';
     document.getElementById('chgEl').className='chg '+(chg>=0?'up':'dn');
-    document.getElementById('timeEl').textContent=new Date().toLocaleTimeString('es-ES');
+    document.getElementById('timeEl').textContent=unit+' · '+new Date().toLocaleTimeString('es-ES');
   }catch(e){document.getElementById('priceEl').textContent='Sin conexión'}
 }
 
