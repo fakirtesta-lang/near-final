@@ -90,6 +90,27 @@ h1{font-size:17px;font-weight:700;margin-bottom:3px}
   </div>
 </div>
 
+<div class="pos-box" id="tradeBox" style="border-color:rgba(74,158,255,.25)">
+  <div class="pos-title" style="color:#4a9eff">
+    <span>Registro de rotaciones</span>
+    <span class="pos-toggle" onclick="document.getElementById('tradeGrid').style.display=document.getElementById('tradeGrid').style.display==='none'?'block':'none'">mostrar/ocultar</span>
+  </div>
+  <div id="tradeGrid">
+    <div class="pos-grid">
+      <div class="pos-field"><label>NEAR vendidos</label><input id="trNear" type="text" inputmode="decimal" placeholder="300"></div>
+      <div class="pos-field"><label>Precio venta</label><input id="trVenta" type="text" inputmode="decimal" placeholder="2.14"></div>
+      <div class="pos-field"><label>Precio recompra (opcional)</label><input id="trRecompra" type="text" inputmode="decimal" placeholder="1.88"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button style="flex:1;padding:10px;font-size:12px;font-weight:700;border-radius:8px;border:.5px solid #4a9eff;background:#1a1d28;color:#4a9eff;cursor:pointer" onclick="simularRotacion()">🧮 Simular</button>
+      <button style="flex:1;padding:10px;font-size:12px;font-weight:700;border-radius:8px;border:none;background:#4a9eff;color:#0d0f14;cursor:pointer" onclick="registrarRotacion()">✅ Registrar</button>
+    </div>
+    <div id="trResult" style="font-size:12px;color:#9aa0b0;margin-top:8px;line-height:1.6"></div>
+    <div id="trStats" style="font-size:11px;color:#6b7080;margin-top:10px;border-top:.5px solid rgba(255,255,255,.08);padding-top:8px"></div>
+    <div id="trList" style="margin-top:6px"></div>
+  </div>
+</div>
+
 <div class="mode-row">
   <div class="mode-btn active" id="modeQ" onclick="setMode('intraday')">
     <span class="icon">⚡</span>Intraday
@@ -185,6 +206,95 @@ function getPos(){
   const reserve=(document.getElementById('posReserve').value||'').trim()||'(sin indicar)';
   const cost=(document.getElementById('posCost').value||'').trim()||'(sin indicar)';
   return {hold,reserve,cost};
+}
+
+// ==================== BITÁCORA DE ROTACIONES (persistente) ====================
+function loadTrades(){
+  try{ return JSON.parse(localStorage.getItem('near_trades')||'[]'); }
+  catch(e){ return []; }
+}
+function saveTrades(t){ try{ localStorage.setItem('near_trades', JSON.stringify(t)); }catch(e){} }
+
+function calcRotacion(nearV,pV,pR){
+  const usdc = nearV*pV;
+  const nearR = (pR>0) ? usdc/pR : null;
+  const ganNear = (nearR!==null) ? (nearR-nearV) : null;
+  const ganPct = (ganNear!==null) ? (ganNear/nearV*100) : null;
+  return {usdc,nearR,ganNear,ganPct};
+}
+function readTradeInputs(){
+  const nearV=parseFloat(document.getElementById('trNear').value);
+  const pV=parseFloat(document.getElementById('trVenta').value);
+  const pRraw=(document.getElementById('trRecompra').value||'').trim();
+  const pR=pRraw?parseFloat(pRraw):null;
+  return {nearV,pV,pR};
+}
+function simularRotacion(){
+  const {nearV,pV,pR}=readTradeInputs();
+  const box=document.getElementById('trResult');
+  if(!nearV||!pV){ box.textContent='Rellena al menos NEAR vendidos y precio de venta.'; return; }
+  const usdc=nearV*pV;
+  if(!pR){
+    box.innerHTML=`Simulación: vender ${fp2(nearV)} NEAR a $${fp2(pV)} → obtienes $${fp2(usdc)} USDC de reserva. Indica un precio de recompra para ver el NEAR resultante.`;
+    return;
+  }
+  const {nearR,ganNear,ganPct}=calcRotacion(nearV,pV,pR);
+  const signo=ganNear>=0?'+':'';
+  box.innerHTML=`Simulación: vendes ${fp2(nearV)} NEAR a $${fp2(pV)} → $${fp2(usdc)} USDC → recompras a $${fp2(pR)} → <strong>${fp2(nearR)} NEAR</strong>.<br>Resultado: <strong style="color:${ganNear>=0?'#2dd4a0':'#ff6b6b'}">${signo}${fp2(ganNear)} NEAR (${signo}${fp2(ganPct)}%)</strong> ${ganNear>=0?'✓ rotación rentable':'✗ rotación perdedora — revisa el plan'}.`;
+}
+function registrarRotacion(){
+  const {nearV,pV,pR}=readTradeInputs();
+  if(!nearV||!pV){ alert('Indica al menos NEAR vendidos y precio de venta.'); return; }
+  const trades=loadTrades();
+  const usdc=nearV*pV;
+  let entry={id:Date.now(),date:new Date().toISOString(),nearV,pV,usdc,pR:pR||null,estado:pR?'cerrada':'abierta'};
+  if(pR){ const {nearR,ganNear,ganPct}=calcRotacion(nearV,pV,pR); entry.nearR=nearR; entry.ganNear=ganNear; entry.ganPct=ganPct; }
+  trades.unshift(entry);
+  saveTrades(trades);
+  document.getElementById('trNear').value=''; document.getElementById('trVenta').value=''; document.getElementById('trRecompra').value='';
+  document.getElementById('trResult').textContent='Rotación registrada.';
+  renderTrades();
+}
+function cerrarRotacion(id){
+  const pRraw=prompt('Precio de recompra para cerrar esta rotación:');
+  const pR=parseFloat(pRraw);
+  if(!pR) return;
+  const trades=loadTrades();
+  const t=trades.find(x=>x.id===id);
+  if(!t) return;
+  const {nearR,ganNear,ganPct}=calcRotacion(t.nearV,t.pV,pR);
+  t.pR=pR; t.estado='cerrada'; t.nearR=nearR; t.ganNear=ganNear; t.ganPct=ganPct;
+  saveTrades(trades);
+  renderTrades();
+}
+function borrarRotacion(id){
+  if(!confirm('¿Borrar esta operación del historial?')) return;
+  saveTrades(loadTrades().filter(x=>x.id!==id));
+  renderTrades();
+}
+function tradeStats(trades){
+  const cerradas=trades.filter(t=>t.estado==='cerrada');
+  const ganadas=cerradas.filter(t=>t.ganNear>0);
+  const perdidas=cerradas.filter(t=>t.ganNear<=0);
+  const nearNetos=cerradas.reduce((a,t)=>a+t.ganNear,0);
+  const precision=cerradas.length?(ganadas.length/cerradas.length*100):null;
+  return {total:trades.length,cerradas:cerradas.length,ganadas:ganadas.length,perdidas:perdidas.length,precision,nearNetos,abiertas:trades.length-cerradas.length};
+}
+function renderTrades(){
+  const trades=loadTrades();
+  const st=tradeStats(trades);
+  document.getElementById('trStats').innerHTML = trades.length
+    ? `${st.total} operaciones · ${st.cerradas} cerradas (${st.ganadas} ganadas / ${st.perdidas} perdidas${st.precision!==null?` · precisión ${fp2(st.precision)}%`:''}) · ${st.abiertas} abiertas<br><strong style="color:${st.nearNetos>=0?'#2dd4a0':'#ff6b6b'}">NEAR netos: ${st.nearNetos>=0?'+':''}${fp2(st.nearNetos)}</strong>`
+    : 'Sin operaciones registradas todavía.';
+  const list=document.getElementById('trList');
+  list.innerHTML = trades.slice(0,8).map(t=>{
+    const fecha=new Date(t.date).toLocaleDateString('es-ES');
+    if(t.estado==='cerrada'){
+      const signo=t.ganNear>=0?'+':'';
+      return `<div style="font-size:11px;color:#9aa0b0;padding:5px 0;border-bottom:.5px solid rgba(255,255,255,.06)">${fecha} · vendiste ${fp2(t.nearV)} @ $${fp2(t.pV)} → recompraste @ $${fp2(t.pR)} → <span style="color:${t.ganNear>=0?'#2dd4a0':'#ff6b6b'}">${signo}${fp2(t.ganNear)} NEAR</span> <span onclick="borrarRotacion(${t.id})" style="cursor:pointer;color:#4a5060">✕</span></div>`;
+    }
+    return `<div style="font-size:11px;color:#f5a623;padding:5px 0;border-bottom:.5px solid rgba(255,255,255,.06)">${fecha} · vendiste ${fp2(t.nearV)} @ $${fp2(t.pV)} → ABIERTA (pendiente recompra) <span onclick="cerrarRotacion(${t.id})" style="cursor:pointer;text-decoration:underline">cerrar</span> <span onclick="borrarRotacion(${t.id})" style="cursor:pointer;color:#4a5060">✕</span></div>`;
+  }).join('');
 }
 
 // ==================== MODO ====================
@@ -450,12 +560,13 @@ function renderVeredictoBadge(vd){
   box.className = `vered-box show ${vd.cssClass}`;
 }
 
-// ==================== HISTORIAL (localStorage, 3 informes) ====================
+// ==================== HISTORIAL (localStorage, hasta 40 informes ≈ varios días) ====================
+const HIST_CAP = 40;
 function saveToHistory(snap){
   try{
     let h = JSON.parse(localStorage.getItem('near_hist')||'[]');
     h.unshift(snap);
-    localStorage.setItem('near_hist', JSON.stringify(h.slice(0,3)));
+    localStorage.setItem('near_hist', JSON.stringify(h.slice(0,HIST_CAP)));
   }catch(e){}
 }
 function loadHistory(){
@@ -465,6 +576,20 @@ function loadHistory(){
 function restoreLastReport(){
   const h = loadHistory();
   if(h.length){ lastReport = h[0]; }
+}
+// Busca en el historial el snapshot más cercano a "hace 24h" (ventana 18h-30h para
+// tolerar que no siempre se genere un informe exactamente cada 24h).
+function find24hSnapshot(){
+  const h = loadHistory();
+  const target = Date.now() - 24*3600*1000;
+  let best=null, bestDiff=Infinity;
+  for(const s of h){
+    const diff = Math.abs(s.ts - target);
+    if(diff < bestDiff){ bestDiff = diff; best = s; }
+  }
+  const hrs = best ? Math.abs(Date.now()-best.ts)/3600000 : null;
+  if(best && hrs>=18 && hrs<=30) return best;
+  return null;
 }
 
 // ==================== RELOJ DE MERCADO ====================
@@ -717,7 +842,9 @@ async function runAll(){
   document.getElementById('reportArea').classList.add('show');
 
   // Guardar snapshot en historial persistente
-  lastReport={ts:Date.now(),price:res[TFS[0].tf]?.price||0,oi,fr,ls,fg:fg.val,
+  lastReport={ts:Date.now(),mode,price:res[TFS[0].tf]?.price||0,oi,fr,ls,fg:fg.val,
+              frRaw,lsRaw,fgVal:+fg.val,
+              rsiPrimary:res[TFS[0].tf]?.rsi,tfPrimaryName:TFS[0].name,
               rsi1m:res['1']?.rsi,rsi5m:res['5']?.rsi,oiChg1h};
   saveToHistory(lastReport);
 
@@ -749,6 +876,18 @@ function buildReport(res,TFS,D){
   // Veredicto para el texto del informe
   const vd = lastVeredicto || {verdict:'SIN DATOS',emoji:'⚪',action:'',signals:[],conf:'BAJA',bull:0,bear:0};
 
+  // Resumen de la bitácora de rotaciones para dar contexto histórico a la IA
+  const trades = loadTrades();
+  const tst = tradeStats(trades);
+  const tradeSummary = trades.length
+    ? `  ${tst.total} operaciones registradas · ${tst.cerradas} cerradas (${tst.ganadas} ganadas / ${tst.perdidas} perdidas${tst.precision!==null?` · precisión ${fp2(tst.precision)}%`:''}) · ${tst.abiertas} abiertas\n`
+      + `  NEAR netos acumulados en rotaciones cerradas: ${tst.nearNetos>=0?'+':''}${fp2(tst.nearNetos)}\n`
+      + trades.slice(0,5).map(t=>t.estado==='cerrada'
+          ? `  · ${new Date(t.date).toLocaleDateString('es-ES')}: vendió ${fp2(t.nearV)} NEAR @ $${fp2(t.pV)} → recompró @ $${fp2(t.pR)} → ${t.ganNear>=0?'+':''}${fp2(t.ganNear)} NEAR`
+          : `  · ${new Date(t.date).toLocaleDateString('es-ES')}: vendió ${fp2(t.nearV)} NEAR @ $${fp2(t.pV)} → ABIERTA (pendiente recompra)`
+        ).join('\n')
+    : '  Sin operaciones registradas todavía.';
+
   let R=`═══════════════════════════════════════════════════
 NEAR · INFORME PARA ACUMULADOR DE POSICIÓN
 Modo: ${mode==='context'?'CONTEXTO MACRO':'INTRADAY'} (${tfNames})
@@ -762,6 +901,9 @@ ${vd.signals.length?vd.signals.map(s=>'  · '+s).join('\n'):'  · Sin señales d
 
 MI POSICIÓN (input del trader):
   Holdings NEAR: ${pos.hold}   |   Reserva USDC: ${pos.reserve}   |   Coste medio: $${pos.cost}
+
+BITÁCORA DE OPERACIONES (rotaciones registradas manualmente por el trader):
+${tradeSummary}
 
 ───────────────────────────────────────────────────
 ROL Y REGLAS PARA EL ANALISTA IA
@@ -809,6 +951,32 @@ FORMATO DE RESPUESTA:
   clave + precio de invalidación · confianza 0-100 · línea de rotación si hay posición.
 - Informe completo SOLO si los datos lo justifican. No inventes objetivos de % fijos.
 - Si mi acción propuesta contradice mi plan escrito, dímelo ANTES de nada.
+
+LECTURA CUANTITATIVA (inclúyela siempre, como bloque aparte tras el veredicto):
+- RÉGIMEN DE MERCADO: clasifica en una categoría (tendencial alcista / tendencial
+  bajista / rango / acumulación / distribución / pánico / capitulación / euforia)
+  y justifica en 1 línea con qué datos de este informe lo sustentas.
+- PROBABILIDADES DE ESCENARIO (próximas horas/días, deben sumar ~100%):
+  continuación de tendencia actual · rebote técnico · giro de tendencia. Basa el
+  reparto en confluencia real de señales, no en corazonada; si los datos son
+  ambiguos, dilo y usa probabilidades cercanas a 33/33/33 en vez de forzar convicción.
+- FASE DE WYCKOFF (si la estructura de precio/volumen la sugiere con claridad):
+  fase y probabilidad estimada. Si no hay estructura reconocible, escribe
+  "sin fase de Wyckoff identificable" — no la fuerces.
+- CICLO MÁS AMPLIO: si el contexto HTF (diario/semanal de NEAR y BTC) lo permite,
+  sitúa dónde estamos dentro del ciclo (ej. "posible tramo final de fase bajista",
+  "inicio de recuperación", "sin datos suficientes para ubicar el ciclo").
+- CALIDAD DE LA SEÑAL: nota A+/A/B/C/D según cuántas confirmaciones independientes
+  (estructura NEAR, BTC, order flow, funding/OI, sentimiento) apuntan en la misma
+  dirección. Explica qué falta para subir de nota.
+- RIESGO/BENEFICIO de la operación propuesta (si hay una): entrada, stop lógico,
+  objetivo probable, ratio R:R. Si no hay operación clara, omite este punto.
+- SI TENGO POSICIÓN ABIERTA, enmárcalo como ROTACIÓN, no como venta simple: % de
+  posición a rotar, objetivo de recompra, NEAR netos esperados si se cumple, y
+  probabilidad estimada de que la recompra se ejecute en ese nivel.
+- Estas etiquetas son apoyo a la decisión, no verdad absoluta: si los datos no dan
+  para una lectura clara en algún punto, dilo explícitamente en vez de inventar.
+
 - Cierra preguntando si desarrollo algún punto.
 
 ───────────────────────────────────────────────────
@@ -926,6 +1094,29 @@ ${isFinite(D.oiChg1h)&&D.oiChg1h>5?`  ⚠ OI +${D.oiChg1h.toFixed(2)}% en 1h —
 ${isFinite(D.oiChg1h)&&D.oiChg1h<-5?`  ⚠ OI ${D.oiChg1h.toFixed(2)}% en 1h — liquidaciones/salida`:''}`;
   } else {
     R+=`\n\n(Primera generación — el próximo informe incluirá comparativo automático)`;
+  }
+
+  // Comparativo específico a ~24h (busca en el historial, independiente del último informe)
+  const s24 = find24hSnapshot();
+  if(s24){
+    const curRsi = res[TFS[0].tf]?.rsi;
+    const rsiLine = (isFinite(s24.rsiPrimary) && isFinite(curRsi))
+      ? `RSI (${TFS[0].name}): ${fp2(s24.rsiPrimary)} → ${fp2(curRsi)}  ${curRsi>s24.rsiPrimary?'↑ mejora':curRsi<s24.rsiPrimary?'↓ empeora':'= estable'}`
+      : `RSI: DATO NO DISPONIBLE hace 24h (TF distinto o sin muestra en ventana)`;
+    const dP24 = s24.price ? ((p-s24.price)/s24.price*100) : NaN;
+    R+=`
+
+═══════════════════════════════════════════════════
+COMPARATIVO A ~24H (snapshot más cercano: ${Math.round(Math.abs(Date.now()-s24.ts)/3600000)}h atrás)
+═══════════════════════════════════════════════════
+Precio:  $${fp(s24.price)} → $${fp(p)}  ${isFinite(dP24)?`(${dP24>=0?'+':''}${dP24.toFixed(2)}%)`:''}
+${rsiLine}
+OI:      ${s24.oi} → ${D.oi}
+Funding: ${s24.fr} → ${D.fr}
+L/S:     ${s24.ls} → ${D.ls}
+F&G:     ${s24.fg} → ${D.fg.val}`;
+  } else {
+    R+=`\n\n(Sin snapshot en la ventana de ~24h todavía — se irá completando con el uso diario de la app)`;
   }
   return R;
 }
@@ -1062,6 +1253,7 @@ async function loadPrice(){
 
 loadPos();
 restoreLastReport();  // restaura último informe del historial al arrancar
+renderTrades();       // pinta bitácora de rotaciones guardada
 loadPrice();
 renderClock();
 setInterval(loadPrice,15000);
