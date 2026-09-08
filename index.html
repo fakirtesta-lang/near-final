@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="NEAR Report">
+<meta name="apple-mobile-web-app-title" content="Informe Trading">
 <meta name="theme-color" content="#0d0f14">
-<title>NEAR · Generador de Informe</title>
+<title>Informe de Trading · NEAR / SOL / BTC</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0d0f14;color:#e8e9ec;font-family:-apple-system,sans-serif;font-size:14px;padding:16px;max-width:680px;margin:0 auto}
@@ -65,12 +65,29 @@ h1{font-size:17px;font-weight:700;margin-bottom:3px}
 .vered-action{font-size:12px;color:#9aa0b0;margin-bottom:4px}
 .vered-signals{font-size:11px;color:#6b7080}
 .vered-conf{font-size:10px;color:#4a5060;margin-top:4px}
+/* Selector de activo */
+.asset-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px}
+.asset-btn{padding:10px;border-radius:10px;border:.5px solid rgba(255,255,255,.1);background:#13161e;color:#6b7080;font-size:14px;font-weight:700;cursor:pointer;text-align:center;letter-spacing:.5px}
+.asset-btn.active{border-color:#c084fc;background:rgba(192,132,252,.1);color:#c084fc}
+/* Cartera */
+.port-box{background:#13161e;border:.5px solid rgba(192,132,252,.25);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#9aa0b0;line-height:1.7}
+.port-box .pt{font-size:11px;font-weight:700;color:#c084fc;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.port-alert{color:#ff6b6b;font-weight:700}
+.port-ok{color:#2dd4a0}
+.btn-port{background:#13161e;color:#c084fc;border:.5px solid #c084fc}
+.btn-port:disabled{opacity:.5;cursor:wait}
 </style>
 </head>
 <body>
 
-<h1>▲ NEAR/USDT · Informe Acumulador</h1>
+<h1 id="hTitle">▲ NEAR/USDT · Informe de posición</h1>
 <p class="sub">Datos en tiempo real · Bybit API · BTC integrado como contexto macro</p>
+
+<div class="asset-row">
+  <div class="asset-btn" id="asNEAR" onclick="setAsset('NEAR')">NEAR</div>
+  <div class="asset-btn" id="asSOL"  onclick="setAsset('SOL')">SOL</div>
+  <div class="asset-btn" id="asBTC"  onclick="setAsset('BTC')">BTC</div>
+</div>
 
 <div class="price-box">
   <span class="price" id="priceEl">Cargando...</span>
@@ -80,24 +97,30 @@ h1{font-size:17px;font-weight:700;margin-bottom:3px}
 
 <div class="pos-box">
   <div class="pos-title">
-    <span>Mi posición</span>
-    <span class="pos-toggle" onclick="document.getElementById('posGrid').style.display=document.getElementById('posGrid').style.display==='none'?'grid':'none'">mostrar/ocultar</span>
+    <span>Mi posición (opcional)</span>
+    <span class="pos-toggle" onclick="document.getElementById('posGrid').style.display=document.getElementById('posGrid').style.display==='none'?'grid':'none'">rellenar si quieres capa de cartera ▾</span>
   </div>
-  <div class="pos-grid" id="posGrid">
-    <div class="pos-field"><label>Holdings (NEAR)</label><input id="posHold" type="text" inputmode="decimal" placeholder="1200" oninput="savePos()"></div>
+  <div class="pos-grid" id="posGrid" style="display:none">
+    <div class="pos-field"><label>Holdings (<span class="lblAsset">NEAR</span>)</label><input id="posHold" type="text" inputmode="decimal" placeholder="1200" oninput="savePos()"></div>
     <div class="pos-field"><label>Reserva (USDC)</label><input id="posReserve" type="text" inputmode="decimal" placeholder="0" oninput="savePos()"></div>
     <div class="pos-field"><label>Coste medio ($)</label><input id="posCost" type="text" inputmode="decimal" placeholder="2.47" oninput="savePos()"></div>
+    <div class="pos-field" style="grid-column:1/-1"><label>Otros activos fuera de esta app ($) — opcional</label><input id="posOtros" type="text" inputmode="decimal" placeholder="0" oninput="savePos()"></div>
   </div>
+</div>
+
+<div class="port-box" id="portBox" style="display:none">
+  <div class="pt">Cartera</div>
+  <div id="portBody">Introduce holdings para calcular la concentración.</div>
 </div>
 
 <div class="pos-box" id="tradeBox" style="border-color:rgba(74,158,255,.25)">
   <div class="pos-title" style="color:#4a9eff">
     <span>Registro de rotaciones</span>
-    <span class="pos-toggle" onclick="document.getElementById('tradeGrid').style.display=document.getElementById('tradeGrid').style.display==='none'?'block':'none'">mostrar/ocultar</span>
+    <span class="pos-toggle" onclick="document.getElementById('tradeGrid').style.display=document.getElementById('tradeGrid').style.display==='none'?'block':'none'">opcional ▾</span>
   </div>
-  <div id="tradeGrid">
+  <div id="tradeGrid" style="display:none">
     <div class="pos-grid">
-      <div class="pos-field"><label>NEAR vendidos</label><input id="trNear" type="text" inputmode="decimal" placeholder="300"></div>
+      <div class="pos-field"><label><span class="lblAsset">NEAR</span> vendidos</label><input id="trNear" type="text" inputmode="decimal" placeholder="300"></div>
       <div class="pos-field"><label>Precio venta</label><input id="trVenta" type="text" inputmode="decimal" placeholder="2.14"></div>
       <div class="pos-field"><label>Precio recompra (opcional)</label><input id="trRecompra" type="text" inputmode="decimal" placeholder="1.88"></div>
     </div>
@@ -126,6 +149,7 @@ h1{font-size:17px;font-weight:700;margin-bottom:3px}
 
 <button class="btn btn-go" id="btnGo" onclick="runAll()">⚡ Generar informe intraday</button>
 <button class="btn btn-pulse" id="btnPulse" onclick="runPulse()">⚡ Pulso rápido (qué cambió)</button>
+<button class="btn btn-port" id="btnPort" onclick="runCartera()">📊 Capa de cartera (comparar NEAR · SOL · BTC)</button>
 
 <div class="prog-box" id="progBox">
   <div class="prog-title">Recopilando datos...</div>
@@ -151,9 +175,26 @@ h1{font-size:17px;font-weight:700;margin-bottom:3px}
 <script>
 // ==================== CONSTANTES ====================
 const BY = 'https://api.bybit.com/v5/market';
-const SYM = 'NEARUSDT';
-const SYM_USDC = 'NEARUSDC';
-const PRECISION = 4;
+
+// Registro de activos — para añadir uno nuevo basta con una línea aquí.
+const ASSETS = {
+  NEAR:{id:'NEAR',name:'NEAR',sym:'NEARUSDT',symUsdc:'NEARUSDC',prec:4},
+  SOL: {id:'SOL', name:'SOL', sym:'SOLUSDT', symUsdc:'SOLUSDC', prec:3},
+  BTC: {id:'BTC', name:'BTC', sym:'BTCUSDT', symUsdc:'BTCUSDC', prec:1}
+};
+const ASSET_IDS = Object.keys(ASSETS);
+function readAssetId(){ try{ const v=localStorage.getItem('app_asset'); return ASSETS[v]?v:'NEAR'; }catch(e){ return 'NEAR'; } }
+let ASSET = ASSETS[readAssetId()];
+let SYM = ASSET.sym;
+let SYM_USDC = ASSET.symUsdc;
+let PRECISION = ASSET.prec;
+
+// Caducidad de tesis (regla v3): semanas sin tocar validación ni invalidación
+const CADUCIDAD_SEMANAS = 8;
+// Límites de riesgo innegociables (v3)
+const LIM_CONCENTRACION = 40;   // % máx en un activo distinto de BTC
+const LIM_DESPLIEGUE    = 25;   // % máx de la reserva en una sola sesión
+const LIM_ESTABLES_MIN  = 20;   // % mín de la cartera en estables
 
 const TFS_INTRADAY = [
   {tf:'1',  lim:100, name:'1 MINUTO'},
@@ -175,6 +216,7 @@ const cache = {};
 let steps = [];
 let lastReport = null;
 let lastVeredicto = null;
+let lastOutputType = 'informe';
 let isRunning = false;
 
 // ==================== FORMATO ====================
@@ -184,36 +226,108 @@ function fmtV(v){v=+v;if(v>=1e9)return(v/1e9).toFixed(2)+'B';if(v>=1e6)return(v/
 function pct(v){return isFinite(v)?(v>=0?'+':'')+v.toFixed(2)+'%':'DATO NO DISPONIBLE'}
 
 // ==================== POSICIÓN (persistente) ====================
+// Claves de almacenamiento por activo (holdings y coste son de cada moneda;
+// la reserva estable y "otros activos" son de la cartera entera).
+const K = n => n+'_'+ASSET.id;
+const val = id => (document.getElementById(id).value||'').trim();
+const num = v => { const x=parseFloat(String(v).replace(',','.')); return isFinite(x)?x:NaN; };
+
 function savePos(){
   try{
-    localStorage.setItem('near_pos', JSON.stringify({
-      hold: document.getElementById('posHold').value,
-      reserve: document.getElementById('posReserve').value,
-      cost: document.getElementById('posCost').value
-    }));
+    localStorage.setItem(K('pos'), JSON.stringify({hold:val('posHold'), cost:val('posCost')}));
+    localStorage.setItem('cartera_reserva', val('posReserve'));
+    localStorage.setItem('cartera_otros',   val('posOtros'));
   }catch(e){}
+  renderPortfolio();
 }
 function loadPos(){
   try{
-    const p=JSON.parse(localStorage.getItem('near_pos')||'{}');
-    if(p.hold!==undefined) document.getElementById('posHold').value=p.hold;
-    if(p.reserve!==undefined) document.getElementById('posReserve').value=p.reserve;
-    if(p.cost!==undefined) document.getElementById('posCost').value=p.cost;
+    const p=JSON.parse(localStorage.getItem(K('pos'))||'{}');
+    document.getElementById('posHold').value = p.hold||'';
+    document.getElementById('posCost').value = p.cost||'';
+    document.getElementById('posReserve').value = localStorage.getItem('cartera_reserva')||'';
+    document.getElementById('posOtros').value   = localStorage.getItem('cartera_otros')||'';
   }catch(e){}
 }
 function getPos(){
-  const hold=(document.getElementById('posHold').value||'').trim()||'(sin indicar)';
-  const reserve=(document.getElementById('posReserve').value||'').trim()||'(sin indicar)';
-  const cost=(document.getElementById('posCost').value||'').trim()||'(sin indicar)';
+  const hold=val('posHold')||'(sin indicar)';
+  const reserve=val('posReserve')||'(sin indicar)';
+  const cost=val('posCost')||'(sin indicar)';
   return {hold,reserve,cost};
 }
+function holdingsOf(id){ try{ const p=JSON.parse(localStorage.getItem('pos_'+id)||'{}'); return num(p.hold)||0; }catch(e){ return 0; } }
+function costOf(id){ try{ const p=JSON.parse(localStorage.getItem('pos_'+id)||'{}'); const c=num(p.cost); return isFinite(c)?c:null; }catch(e){ return null; } }
+function reservaUSDC(){ const r=num(localStorage.getItem('cartera_reserva')); return isFinite(r)?r:0; }
+function otrosActivos(){ const r=num(localStorage.getItem('cartera_otros')); return isFinite(r)?r:0; }
+
+// Migración desde la versión de un solo activo (claves near_*)
+function migrarV2(){
+  try{
+    if(!localStorage.getItem('pos_NEAR') && localStorage.getItem('near_pos')){
+      const p=JSON.parse(localStorage.getItem('near_pos')||'{}');
+      localStorage.setItem('pos_NEAR', JSON.stringify({hold:p.hold||'', cost:p.cost||''}));
+      if(p.reserve && !localStorage.getItem('cartera_reserva')) localStorage.setItem('cartera_reserva', p.reserve);
+    }
+    if(!localStorage.getItem('trades_NEAR') && localStorage.getItem('near_trades'))
+      localStorage.setItem('trades_NEAR', localStorage.getItem('near_trades'));
+    if(!localStorage.getItem('hist_NEAR') && localStorage.getItem('near_hist'))
+      localStorage.setItem('hist_NEAR', localStorage.getItem('near_hist'));
+  }catch(e){}
+}
+
+// ==================== CARTERA (valor total y concentración) ====================
+let lastPrices = {};
+async function assetPrices(){
+  const out={};
+  for(const id of ASSET_IDS){
+    try{ const d=await byFetch(`${BY}/tickers?category=spot&symbol=${ASSETS[id].sym}`,45000);
+         out[id]=+d.result.list[0].lastPrice; }
+    catch(e){ out[id]=lastPrices[id]!==undefined?lastPrices[id]:null; }
+  }
+  lastPrices=out; return out;
+}
+function computePortfolio(prices){
+  const rows=[]; let sumActivos=0; const sinPrecio=[];
+  for(const id of ASSET_IDS){
+    const h=holdingsOf(id), p=prices[id];
+    if(h<=0) continue;
+    if(!p||!isFinite(p)){ sinPrecio.push(id); rows.push({id,h,p:null,val:null,cost:costOf(id)}); continue; }
+    const v=h*p; sumActivos+=v;
+    rows.push({id,h,p,val:v,cost:costOf(id)});
+  }
+  const reserva=reservaUSDC(), otros=otrosActivos();
+  const total=sumActivos+reserva+otros;
+  const cur=rows.find(r=>r.id===ASSET.id);
+  const valActual=cur&&cur.val?cur.val:0;
+  const pct = total>0 ? valActual/total*100 : null;
+  const pctEstables = total>0 ? reserva/total*100 : null;
+  const calidad = sinPrecio.length ? 'PARCIAL — sin precio de '+sinPrecio.join(', ')
+                : (total>0 ? (otros>0?'COMPLETO (incluye otros activos declarados)':'COMPLETO (solo lo declarado en esta app)') : 'SIN DATOS');
+  return {rows,reserva,otros,sumActivos,total,valActual,pct,pctEstables,calidad,sinPrecio};
+}
+function renderPortfolio(){
+  const el=document.getElementById('portBody'); if(!el) return;
+  const box=document.getElementById('portBox');
+  const P=computePortfolio(lastPrices);
+  if(!P.total){ if(box) box.style.display='none'; return; }
+  if(box) box.style.display='block';
+  const line=P.rows.map(r=>`${r.id} ${fmtV(r.h)} · ${r.val!==null?'$'+fmtV(r.val):'precio n/d'}${r.val!==null&&P.total?` (${(r.val/P.total*100).toFixed(1)}%)`:''}`).join('  |  ');
+  const conc = P.pct;
+  const limite = ASSET.id==='BTC' ? null : LIM_CONCENTRACION;
+  let alerta='';
+  if(limite!==null && conc!==null && conc>limite) alerta=`<br><span class="port-alert">⚠ SOBRECONCENTRACIÓN: ${conc.toFixed(1)}% en ${ASSET.name} (límite ${limite}%) — prohibido comprar más</span>`;
+  if(P.pctEstables!==null && P.pctEstables<LIM_ESTABLES_MIN) alerta+=`<br><span class="port-alert">⚠ Estables al ${P.pctEstables.toFixed(1)}% (mínimo ${LIM_ESTABLES_MIN}%)</span>`;
+  if(!alerta && conc!==null) alerta=`<br><span class="port-ok">✓ Concentración en ${ASSET.name}: ${conc.toFixed(1)}%${limite!==null?` (límite ${limite}%)`:''} · estables ${P.pctEstables!==null?P.pctEstables.toFixed(1)+'%':'n/d'}</span>`;
+  el.innerHTML=`Valor total: <b>$${fmtV(P.total)}</b> · reserva USDC $${fmtV(P.reserva)}${P.otros?` · otros $${fmtV(P.otros)}`:''}<br>${line}${alerta}<br><span style="color:#4a5060;font-size:11px">[DERIVADO] a partir de tus holdings y el precio spot de Bybit · ${P.calidad}</span>`;
+}
+async function refreshPortfolio(){ try{ await assetPrices(); renderPortfolio(); }catch(e){} }
 
 // ==================== BITÁCORA DE ROTACIONES (persistente) ====================
 function loadTrades(){
-  try{ return JSON.parse(localStorage.getItem('near_trades')||'[]'); }
+  try{ return JSON.parse(localStorage.getItem(K('trades'))||'[]'); }
   catch(e){ return []; }
 }
-function saveTrades(t){ try{ localStorage.setItem('near_trades', JSON.stringify(t)); }catch(e){} }
+function saveTrades(t){ try{ localStorage.setItem(K('trades'), JSON.stringify(t)); }catch(e){} }
 
 function calcRotacion(nearV,pV,pR){
   const usdc = nearV*pV;
@@ -232,19 +346,19 @@ function readTradeInputs(){
 function simularRotacion(){
   const {nearV,pV,pR}=readTradeInputs();
   const box=document.getElementById('trResult');
-  if(!nearV||!pV){ box.textContent='Rellena al menos NEAR vendidos y precio de venta.'; return; }
+  if(!nearV||!pV){ box.textContent=`Rellena al menos ${ASSET.name} vendidos y precio de venta.`; return; }
   const usdc=nearV*pV;
   if(!pR){
-    box.innerHTML=`Simulación: vender ${fp2(nearV)} NEAR a $${fp2(pV)} → obtienes $${fp2(usdc)} USDC de reserva. Indica un precio de recompra para ver el NEAR resultante.`;
+    box.innerHTML=`Simulación: vender ${fp2(nearV)} ${ASSET.name} a $${fp2(pV)} → obtienes $${fp2(usdc)} USDC de reserva. Indica un precio de recompra para ver el ${ASSET.name} resultante.`;
     return;
   }
   const {nearR,ganNear,ganPct}=calcRotacion(nearV,pV,pR);
   const signo=ganNear>=0?'+':'';
-  box.innerHTML=`Simulación: vendes ${fp2(nearV)} NEAR a $${fp2(pV)} → $${fp2(usdc)} USDC → recompras a $${fp2(pR)} → <strong>${fp2(nearR)} NEAR</strong>.<br>Resultado: <strong style="color:${ganNear>=0?'#2dd4a0':'#ff6b6b'}">${signo}${fp2(ganNear)} NEAR (${signo}${fp2(ganPct)}%)</strong> ${ganNear>=0?'✓ rotación rentable':'✗ rotación perdedora — revisa el plan'}.`;
+  box.innerHTML=`Simulación: vendes ${fp2(nearV)} ${ASSET.name} a $${fp2(pV)} → $${fp2(usdc)} USDC → recompras a $${fp2(pR)} → <strong>${fp2(nearR)} ${ASSET.name}</strong>.<br>Resultado: <strong style="color:${ganNear>=0?'#2dd4a0':'#ff6b6b'}">${signo}${fp2(ganNear)} ${ASSET.name} (${signo}${fp2(ganPct)}%)</strong> ${ganNear>=0?'✓ rotación rentable':'✗ rotación perdedora — revisa el plan'}.`;
 }
 function registrarRotacion(){
   const {nearV,pV,pR}=readTradeInputs();
-  if(!nearV||!pV){ alert('Indica al menos NEAR vendidos y precio de venta.'); return; }
+  if(!nearV||!pV){ alert(`Indica al menos ${ASSET.name} vendidos y precio de venta.`); return; }
   const trades=loadTrades();
   const usdc=nearV*pV;
   let entry={id:Date.now(),date:new Date().toISOString(),nearV,pV,usdc,pR:pR||null,estado:pR?'cerrada':'abierta'};
@@ -284,17 +398,33 @@ function renderTrades(){
   const trades=loadTrades();
   const st=tradeStats(trades);
   document.getElementById('trStats').innerHTML = trades.length
-    ? `${st.total} operaciones · ${st.cerradas} cerradas (${st.ganadas} ganadas / ${st.perdidas} perdidas${st.precision!==null?` · precisión ${fp2(st.precision)}%`:''}) · ${st.abiertas} abiertas<br><strong style="color:${st.nearNetos>=0?'#2dd4a0':'#ff6b6b'}">NEAR netos: ${st.nearNetos>=0?'+':''}${fp2(st.nearNetos)}</strong>`
+    ? `${st.total} operaciones · ${st.cerradas} cerradas (${st.ganadas} ganadas / ${st.perdidas} perdidas${st.precision!==null?` · precisión ${fp2(st.precision)}%`:''}) · ${st.abiertas} abiertas<br><strong style="color:${st.nearNetos>=0?'#2dd4a0':'#ff6b6b'}">${ASSET.name} netos: ${st.nearNetos>=0?'+':''}${fp2(st.nearNetos)}</strong>`
     : 'Sin operaciones registradas todavía.';
   const list=document.getElementById('trList');
   list.innerHTML = trades.slice(0,8).map(t=>{
     const fecha=new Date(t.date).toLocaleDateString('es-ES');
     if(t.estado==='cerrada'){
       const signo=t.ganNear>=0?'+':'';
-      return `<div style="font-size:11px;color:#9aa0b0;padding:5px 0;border-bottom:.5px solid rgba(255,255,255,.06)">${fecha} · vendiste ${fp2(t.nearV)} @ $${fp2(t.pV)} → recompraste @ $${fp2(t.pR)} → <span style="color:${t.ganNear>=0?'#2dd4a0':'#ff6b6b'}">${signo}${fp2(t.ganNear)} NEAR</span> <span onclick="borrarRotacion(${t.id})" style="cursor:pointer;color:#4a5060">✕</span></div>`;
+      return `<div style="font-size:11px;color:#9aa0b0;padding:5px 0;border-bottom:.5px solid rgba(255,255,255,.06)">${fecha} · vendiste ${fp2(t.nearV)} @ $${fp2(t.pV)} → recompraste @ $${fp2(t.pR)} → <span style="color:${t.ganNear>=0?'#2dd4a0':'#ff6b6b'}">${signo}${fp2(t.ganNear)} ${ASSET.name}</span> <span onclick="borrarRotacion(${t.id})" style="cursor:pointer;color:#4a5060">✕</span></div>`;
     }
     return `<div style="font-size:11px;color:#f5a623;padding:5px 0;border-bottom:.5px solid rgba(255,255,255,.06)">${fecha} · vendiste ${fp2(t.nearV)} @ $${fp2(t.pV)} → ABIERTA (pendiente recompra) <span onclick="cerrarRotacion(${t.id})" style="cursor:pointer;text-decoration:underline">cerrar</span> <span onclick="borrarRotacion(${t.id})" style="cursor:pointer;color:#4a5060">✕</span></div>`;
   }).join('');
+}
+
+// ==================== SELECTOR DE ACTIVO ====================
+function setAsset(id){
+  if(isRunning) return;
+  if(!ASSETS[id]) return;
+  ASSET=ASSETS[id]; SYM=ASSET.sym; SYM_USDC=ASSET.symUsdc; PRECISION=ASSET.prec;
+  try{ localStorage.setItem('app_asset',id); }catch(e){}
+  ASSET_IDS.forEach(k=>{ const b=document.getElementById('as'+k); if(b) b.classList.toggle('active',k===id); });
+  document.getElementById('hTitle').textContent=`▲ ${ASSET.name}/USDT · Informe de posición`;
+  document.querySelectorAll('.lblAsset').forEach(e=>e.textContent=ASSET.name);
+  lastVeredicto=null; lastReport=null;
+  document.getElementById('veredBox').classList.remove('show');
+  document.getElementById('reportArea').classList.remove('show');
+  document.getElementById('progBox').style.display='none';
+  loadPos(); restoreLastReport(); renderTrades(); renderPortfolio(); loadPrice();
 }
 
 // ==================== MODO ====================
@@ -457,6 +587,139 @@ function htfStruct(ca){
 }
 function fmtUSD(v){return '$'+Math.round(v).toLocaleString('en-US')}
 
+// ==================== ESTRUCTURA DE LARGO PLAZO ====================
+// Bybit solo guarda ~250-340 velas semanales y ~55-80 mensuales por par, así que una
+// EMA200 mensual es IMPOSIBLE y una EMA200 semanal saldría mal sembrada. Línea maestra:
+// EMA50 semanal (≈1 año), confirmada por EMA20 mensual (≈1,7 años). Se etiqueta siempre
+// cuántas velas la sostienen para que el analista sepa cuánto pesa el dato.
+async function ltKlines(sym){
+  const out={w:null,m:null};
+  const r=await Promise.allSettled([
+    byFetch(`${BY}/kline?category=linear&symbol=${sym}&interval=W&limit=500`,900000),
+    byFetch(`${BY}/kline?category=linear&symbol=${sym}&interval=M&limit=200`,900000)
+  ]);
+  try{ if(r[0].status==='fulfilled') out.w=parseK(r[0].value.result.list); }catch(e){}
+  try{ if(r[1].status==='fulfilled') out.m=parseK(r[1].value.result.list); }catch(e){}
+  return out;
+}
+function emaCheck(ca,period,label){
+  if(!ca||ca.length<Math.ceil(period*1.5))
+    return {ok:false,label,txt:`${label}: DATO NO DISPONIBLE (${ca?ca.length:0} velas, se necesitan ≥${Math.ceil(period*1.5)})`};
+  const cls=ca.map(c=>c.c), e=ema(cls,period), v=e[e.length-1], last=cls[cls.length-1];
+  const over=last>v, dist=(last-v)/v*100;
+  const seed = ca.length>=period*3 ? 'siembra sólida' : 'siembra corta, valor orientativo';
+  return {ok:true,label,v,over,dist,n:ca.length,
+    txt:`${label} $${fp(v)} · precio ${over?'POR ENCIMA ✓':'POR DEBAJO ✗'} (${dist>=0?'+':''}${dist.toFixed(1)}%) · ${ca.length} velas — ${seed}`};
+}
+function ltStruct(kl){
+  const w50 = emaCheck(kl.w,50,'EMA50 semanal  (línea maestra, ≈1 año)');
+  const w100= emaCheck(kl.w,100,'EMA100 semanal (≈2 años)');
+  const m20 = emaCheck(kl.m,20,'EMA20 mensual  (confirmación de ciclo, ≈1,7 años)');
+  const votos=[w50,w100,m20].filter(x=>x.ok);
+  const arriba=votos.filter(x=>x.over).length, abajo=votos.filter(x=>!x.over).length;
+  let regimen,operativa;
+  if(!votos.length){ regimen='INDETERMINADO (sin histórico suficiente)'; operativa='Trata cualquier subida como rebote hasta tener estructura.'; }
+  else if(abajo===0){ regimen='ALCISTA DE LARGO PLAZO'; operativa='Se permite hablar de acumular y de tendencia.'; }
+  else if(arriba===0){ regimen='BAJISTA DE LARGO PLAZO'; operativa='Toda subida es REBOTE, no tendencia. Prohibida la palabra "acumular": se opera el rebote.'; }
+  else { regimen='EN TRANSICIÓN (señales de largo plazo divergentes)'; operativa='Giro reciente sin confirmar. Tamaño reducido hasta que las tres líneas coincidan.'; }
+  return {w50,w100,m20,regimen,operativa,arriba,abajo,votos:votos.length};
+}
+function ltBlock(title,lt){
+  if(!lt) return `${title}: DATO NO DISPONIBLE\n`;
+  return `${title}\n  ${lt.w50.txt}\n  ${lt.w100.txt}\n  ${lt.m20.txt}\n  → RÉGIMEN DE LARGO PLAZO: ${lt.regimen}\n     ${lt.operativa}\n`;
+}
+
+// ==================== RANGOS MULTIPLAZO ====================
+// Dónde está el precio dentro de sus rangos de 7d / 30d / 90d / 1 año.
+// Máximos y mínimos previos son NIVEL 1 en la jerarquía de evidencia: deciden.
+function rangos(ca, price){
+  const per=[{n:7,l:'7 días'},{n:30,l:'30 días'},{n:90,l:'90 días'},{n:365,l:'1 año'}];
+  const out=[];
+  for(const p of per){
+    if(!ca||ca.length<p.n){ out.push({l:p.l,ok:false,pedidas:p.n,hay:ca?ca.length:0}); continue; }
+    const sl=ca.slice(-p.n);
+    const hi=Math.max(...sl.map(c=>c.h)), lo=Math.min(...sl.map(c=>c.l));
+    const rango=hi-lo;
+    const posBruta = rango>0 ? (price-lo)/rango*100 : 50;
+    out.push({l:p.l,ok:true,hi,lo,
+      pos: Math.max(0,Math.min(100,posBruta)),
+      fuera: posBruta>100 ? 'por ENCIMA del máximo de la ventana' : posBruta<0 ? 'por DEBAJO del mínimo de la ventana' : null,
+      dHi:(hi-price)/price*100, dLo:(lo-price)/price*100});
+  }
+  let volRel=NaN, atrD=NaN;
+  if(ca&&ca.length>22){
+    const v20=ca.slice(-21,-1).reduce((a,c)=>a+c.v,0)/20;
+    if(v20>0) volRel=ca[ca.length-1].v/v20;
+    const aa=atr(ca).filter(v=>v!==null); atrD=aa.length?aa[aa.length-1]:NaN;
+  }
+  return {out,volRel,atrD,atrPct:isFinite(atrD)?atrD/price*100:NaN,n:ca?ca.length:0};
+}
+function rangosBlock(rg,price){
+  if(!rg||!rg.n) return 'RANGOS MULTIPLAZO: DATO NO DISPONIBLE\n';
+  let t='RANGOS MULTIPLAZO [MEDIDO · '+rg.n+' velas diarias]  ← NIVEL 1, deciden\n';
+  for(const r of rg.out){
+    if(!r.ok){ t+='  '+r.l+': datos insuficientes ('+r.hay+'/'+r.pedidas+' velas)\n'; continue; }
+    const barra='█'.repeat(Math.max(0,Math.min(20,Math.round(r.pos/5))))+'░'.repeat(20-Math.max(0,Math.min(20,Math.round(r.pos/5))));
+    t+='  '+r.l.padEnd(9)+' mín $'+fp(r.lo)+'  máx $'+fp(r.hi)+'   '+barra+' '+r.pos.toFixed(0)+'% del rango'+(r.fuera?'  ⚡ RUPTURA: precio '+r.fuera:'')+'\n';
+    t+='             a máximo '+(r.dHi>=0?'+':'')+r.dHi.toFixed(1)+'%  ·  a mínimo '+r.dLo.toFixed(1)+'%\n';
+  }
+  if(isFinite(rg.volRel)) t+='  Volumen del día: '+rg.volRel.toFixed(2)+'x su media de 20 días '+(rg.volRel>1.5?'⚡ actividad muy por encima de lo normal':rg.volRel<0.6?'· sesión apática, cuidado con las roturas falsas':'· normal')+'\n';
+  if(isFinite(rg.atrPct)) t+='  ATR diario: $'+fp(rg.atrD)+' ('+rg.atrPct.toFixed(2)+'% del precio) — recorrido típico de una sesión\n';
+  return t;
+}
+
+// ==================== BASIS SPOT vs PERPETUO ====================
+// Si el perpetuo cotiza por encima del spot, los derivados tiran del precio (contango).
+// Por debajo, la presión vendedora vive en derivados (backwardation). NIVEL 2: flujo real.
+function basisBlock(B,spot){
+  if(!B||!isFinite(B.perp)) return 'BASIS SPOT vs PERPETUO: DATO NO DISPONIBLE\n';
+  const bs=(B.perp-spot)/spot*100;
+  const mi=(isFinite(B.mark)&&isFinite(B.index)&&B.index>0)?(B.mark-B.index)/B.index*100:NaN;
+  const lectura = bs>0.15 ? 'CONTANGO — el perpetuo va por delante del spot: los derivados empujan. Sesgo alcista, pero es la configuración que revienta en un flush.'
+                : bs<-0.15 ? 'BACKWARDATION — el perpetuo va por detrás del spot: la presión vendedora está en derivados. Sesgo bajista, o cobertura masiva.'
+                : 'PLANO — spot y perpetuo alineados: sin sesgo direccional de derivados.';
+  let t='BASIS SPOT vs PERPETUO [MEDIDO]  ← NIVEL 2, confirma o desmiente\n';
+  t+='  Spot $'+fp(spot)+'  ·  Perpetuo $'+fp(B.perp)+'  ·  Basis '+(bs>=0?'+':'')+bs.toFixed(3)+'%\n';
+  if(isFinite(mi)) t+='  Mark $'+fp(B.mark)+'  ·  Index $'+fp(B.index)+'  ·  desvío '+(mi>=0?'+':'')+mi.toFixed(3)+'%'+(Math.abs(mi)>0.3?'  ⚠ desvío alto: riesgo de liquidaciones en cascada':'')+'\n';
+  if(isFinite(B.oiValue)) t+='  Open Interest en dólares [MEDIDO, no derivado]: $'+fmtV(B.oiValue)+'\n';
+  t+='  → '+lectura+'\n';
+  return t;
+}
+
+// ==================== PROFUNDIDAD REAL DEL LIBRO ====================
+// 200 niveles, no 15. Muros agrupados por zonas de precio y liquidez acumulada por bandas.
+function bookDepth(bids,asks,mid){
+  const bandas=[0.5,1,2,5];
+  const acum=(arr,signo)=>bandas.map(b=>{
+    const lim=mid*(1+signo*b/100);
+    const usd=arr.filter(x=>signo<0? x[0]>=lim : x[0]<=lim).reduce((a,x)=>a+x[0]*x[1],0);
+    return {b,usd};
+  });
+  const paso=mid*0.0025;
+  const agrupar=arr=>{
+    const m={};
+    arr.forEach(x=>{ const k=(Math.round(x[0]/paso)*paso).toFixed(8); m[k]=(m[k]||0)+x[0]*x[1]; });
+    return Object.entries(m).map(([p,u])=>[+p,u]).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  };
+  return {bid:acum(bids,-1), ask:acum(asks,1), murosBid:agrupar(bids), murosAsk:agrupar(asks), niveles:bids.length+asks.length};
+}
+function depthBlock(dp,mid,vol24q){
+  if(!dp) return '';
+  const fmtB=(arr,signo)=>arr.map(x=>(signo<0?'-':'+')+x.b+'%: $'+fmtV(x.usd)).join('  |  ');
+  let t='PROFUNDIDAD REAL DEL LIBRO [MEDIDO · '+dp.niveles+' niveles]  ← NIVEL 2\n';
+  t+='  Liquidez de compra acumulada hasta   '+fmtB(dp.bid,-1)+'\n';
+  t+='  Liquidez de venta acumulada hasta    '+fmtB(dp.ask,1)+'\n';
+  t+='  Muros bid reales (zonas de 0,25%): '+dp.murosBid.map(x=>'$'+fp(x[0])+' ($'+fmtV(x[1])+')').join(' · ')+'\n';
+  t+='  Muros ask reales (zonas de 0,25%): '+dp.murosAsk.map(x=>'$'+fp(x[0])+' ($'+fmtV(x[1])+')').join(' · ')+'\n';
+  if(isFinite(vol24q)&&vol24q>0){
+    const medio=dp.bid[1]?dp.bid[1].usd:0;
+    t+='  Filtro de liquidez: una orden del 0,5% del volumen 24h son $'+fmtV(vol24q*0.005)+'.\n';
+    t+='     Hay $'+fmtV(medio)+' de bids en el 1% inferior → '+(medio>vol24q*0.005?'cabe sin mover el precio':'⚠ una orden de ese tamaño se comería el libro: fracciónala')+'\n';
+  }
+  t+='  Recuerda: coloca compras 1-2 ticks POR ENCIMA de un muro bid, nunca sobre él.\n';
+  return t;
+}
+
 // ==================== OI × PRECIO ====================
 function oiPriceRead(oiChgPct, priceChgPct){
   if(!isFinite(oiChgPct)||!isFinite(priceChgPct)) return 'DATO NO DISPONIBLE';
@@ -489,7 +752,7 @@ function computeVeredicto(res, TFS, D){
   if(tf1 && !tf1.error){
     if(tf1.rsi > 72){ signals.push(`RSI ${TFS[0].name} sobrecomprado (${fp2(tf1.rsi)})`); bear++; }
     else if(tf1.rsi < 30){ signals.push(`RSI ${TFS[0].name} sobrevendido (${fp2(tf1.rsi)})`); bull++; }
-    // Tendencia NEAR
+    // Tendencia del activo
     if(tf1.trend === 'ALCISTA') bull++;
     else if(tf1.trend === 'BAJISTA'){ bear++; signals.push(`Tendencia ${TFS[0].name} bajista`); }
     // OBV
@@ -564,13 +827,13 @@ function renderVeredictoBadge(vd){
 const HIST_CAP = 40;
 function saveToHistory(snap){
   try{
-    let h = JSON.parse(localStorage.getItem('near_hist')||'[]');
+    let h = JSON.parse(localStorage.getItem(K('hist'))||'[]');
     h.unshift(snap);
-    localStorage.setItem('near_hist', JSON.stringify(h.slice(0,HIST_CAP)));
+    localStorage.setItem(K('hist'), JSON.stringify(h.slice(0,HIST_CAP)));
   }catch(e){}
 }
 function loadHistory(){
-  try{ return JSON.parse(localStorage.getItem('near_hist')||'[]'); }
+  try{ return JSON.parse(localStorage.getItem(K('hist'))||'[]'); }
   catch(e){ return []; }
 }
 function restoreLastReport(){
@@ -686,20 +949,22 @@ async function runAll(){
   document.getElementById('veredBox').classList.remove('show');
   const TFS=mode==='context'?TFS_CONTEXT:TFS_INTRADAY;
   steps=[
-    {l:'Velas NEAR',s:'wait'},
-    {l:'Estructura HTF de BTC',s:'wait'},
+    {l:'Velas del activo',s:'wait'},
+    {l:'Correas macro (BTC y ETH)',s:'wait'},
+    {l:'Estructura de largo plazo (sem/mes)',s:'wait'},
+    {l:'Rangos multiplazo (1 año)',s:'wait'},
     {l:'Order book (par real)',s:'wait'},
     {l:'Futuros OI/Funding/L-S',s:'wait'},
     {l:'Velocidad de cinta',s:'wait'},
     {l:'Fear & Greed',s:'wait'},
     {l:'Ticker 24h',s:'wait'},
   ];
-  document.getElementById('progBox').style.display='block'; setStep('Velas NEAR','wait');
+  document.getElementById('progBox').style.display='block'; setStep('Velas del activo','wait');
   const res={};
   try{
 
-  // 1. VELAS NEAR
-  setStep('Velas NEAR','run');
+  // 1. VELAS DEL ACTIVO
+  setStep('Velas del activo','run');
   async function pullK(tf,lim){
     const d=await byFetch(`${BY}/kline?category=spot&symbol=${SYM}&interval=${tf}&limit=${lim}`);
     return parseK(d.result.list);
@@ -718,18 +983,21 @@ async function runAll(){
   await passK(TFS);
   const fallidos=TFS.filter(t=>res[t.tf] && res[t.tf].error);
   if(fallidos.length){ await sleep(800); await passK(fallidos); }
-  setStep('Velas NEAR',Object.values(res).some(r=>!r.error)?'done':'err');
+  setStep('Velas del activo',Object.values(res).some(r=>!r.error)?'done':'err');
 
-  // 2. BTC HTF + correlación
-  let btcD=null,btcW=null,corrBTC='N/A',btcSpot='N/A',btcChg24='N/A';
-  setStep('Estructura HTF de BTC','run');
+  // 2. CORREAS MACRO: BTC + ETH (correlación y beta reales)
+  let btcD=null,btcW=null,corrBTC='N/A',btcSpot='N/A',btcChg24='N/A',betaBTC=NaN;
+  let ethD=null,corrETH='N/A',betaETH=NaN,ethSpot='N/A';
+  setStep('Correas macro (BTC y ETH)','run');
   {
     const r=await Promise.allSettled([
       byFetch(`${BY}/kline?category=spot&symbol=BTCUSDT&interval=D&limit=250`),
       byFetch(`${BY}/kline?category=spot&symbol=BTCUSDT&interval=W&limit=60`),
       byFetch(`${BY}/kline?category=spot&symbol=BTCUSDT&interval=60&limit=48`),
       byFetch(`${BY}/kline?category=spot&symbol=${SYM}&interval=60&limit=48`),
-      byFetch(`${BY}/tickers?category=spot&symbol=BTCUSDT`)
+      byFetch(`${BY}/tickers?category=spot&symbol=BTCUSDT`),
+      byFetch(`${BY}/kline?category=spot&symbol=ETHUSDT&interval=60&limit=48`),
+      byFetch(`${BY}/kline?category=spot&symbol=ETHUSDT&interval=D&limit=250`)
     ]);
     try{ if(r[0].status==='fulfilled') btcD=htfStruct(parseK(r[0].value.result.list)); }catch(e){}
     try{ if(r[1].status==='fulfilled') btcW=htfStruct(parseK(r[1].value.result.list)); }catch(e){}
@@ -739,26 +1007,70 @@ async function runAll(){
         const bR=bCA.map((c,i)=>i===0?0:(c.c-bCA[i-1].c)/bCA[i-1].c);
         const nR=nCA.map((c,i)=>i===0?0:(c.c-nCA[i-1].c)/nCA[i-1].c);
         corrBTC=pearson(nR.slice(1),bR.slice(1)).toFixed(3);
+        const bb2=bR.slice(1), nn2=nR.slice(1), nB=Math.min(bb2.length,nn2.length);
+        const mB=bb2.slice(0,nB).reduce((a,v)=>a+v,0)/nB, mN=nn2.slice(0,nB).reduce((a,v)=>a+v,0)/nB;
+        let cov=0,varB=0;
+        for(let i=0;i<nB;i++){ cov+=(nn2[i]-mN)*(bb2[i]-mB); varB+=(bb2[i]-mB)**2; }
+        if(varB>1e-12) betaBTC=(cov/varB);
       }
     }catch(e){}
     try{ if(r[4].status==='fulfilled'){const tk=r[4].value.result.list[0]; btcSpot=fmtUSD(+tk.lastPrice); btcChg24=fp2(+tk.price24hPcnt*100);} }catch(e){}
-    setStep('Estructura HTF de BTC',(btcD||btcW)?'done':'err');
+    // ETH como segunda correa macro
+    try{
+      if(r[5].status==='fulfilled'&&r[3].status==='fulfilled'){
+        const eCA=parseK(r[5].value.result.list), nCA2=parseK(r[3].value.result.list);
+        const eR=eCA.map((c,i)=>i===0?0:(c.c-eCA[i-1].c)/eCA[i-1].c).slice(1);
+        const nR2=nCA2.map((c,i)=>i===0?0:(c.c-nCA2[i-1].c)/nCA2[i-1].c).slice(1);
+        corrETH=pearson(nR2,eR).toFixed(3);
+        const nE=Math.min(eR.length,nR2.length);
+        const mE=eR.slice(0,nE).reduce((a,v)=>a+v,0)/nE, mN2=nR2.slice(0,nE).reduce((a,v)=>a+v,0)/nE;
+        let cv=0,vE=0;
+        for(let i=0;i<nE;i++){ cv+=(nR2[i]-mN2)*(eR[i]-mE); vE+=(eR[i]-mE)**2; }
+        if(vE>1e-12) betaETH=cv/vE;
+        ethSpot=fmtUSD(eCA[eCA.length-1].c);
+      }
+    }catch(e){}
+    try{ if(r[6].status==='fulfilled') ethD=htfStruct(parseK(r[6].value.result.list)); }catch(e){}
+    setStep('Correas macro (BTC y ETH)',(btcD||btcW)?'done':'err');
   }
 
+  // 2b. ESTRUCTURA DE LARGO PLAZO (semanal + mensual, activo y BTC)
+  let ltA=null, ltB=null;
+  setStep('Estructura de largo plazo (sem/mes)','run');
+  try{
+    const kA=await ltKlines(SYM);
+    ltA=ltStruct(kA);
+    if(ASSET.id==='BTC'){ ltB=ltA; }
+    else { await sleep(400); const kB=await ltKlines('BTCUSDT'); ltB=ltStruct(kB); }
+    setStep('Estructura de largo plazo (sem/mes)', ltA.votos?'done':'err');
+  }catch(e){ setStep('Estructura de largo plazo (sem/mes)','err'); }
+
+  // 2c. RANGOS MULTIPLAZO (1 año de velas diarias)
+  let rg=null, diarias=null;
+  setStep('Rangos multiplazo (1 año)','run');
+  try{
+    const d=await byFetch(`${BY}/kline?category=spot&symbol=${SYM}&interval=D&limit=400`,600000);
+    diarias=parseK(d.result.list);
+    const pRef=res[TFS[0].tf]?.price || diarias[diarias.length-1].c;
+    rg=rangos(diarias,pRef);
+    setStep('Rangos multiplazo (1 año)','done');
+  }catch(e){ setStep('Rangos multiplazo (1 año)','err'); }
+
   // 3. ORDER BOOK
-  let obR='N/A',obSp='N/A',obBid='N/A',obAsk='N/A',obSig='N/A',obPair='N/A',obWalls='';
+  let obR='N/A',obSp='N/A',obBid='N/A',obAsk='N/A',obSig='N/A',obPair='N/A',obWalls='',depth=null;
   setStep('Order book (par real)','run');
   try{
     let d, used=SYM_USDC;
     try{
-      d=await byFetch(`${BY}/orderbook?category=spot&symbol=${SYM_USDC}&limit=25`);
-      if(!d.result||!d.result.b||!d.result.b.length){ used=SYM; d=await byFetch(`${BY}/orderbook?category=spot&symbol=${SYM}&limit=25`); }
-    }catch(e){ used=SYM; d=await byFetch(`${BY}/orderbook?category=spot&symbol=${SYM}&limit=25`); }
+      d=await byFetch(`${BY}/orderbook?category=spot&symbol=${SYM_USDC}&limit=200`);
+      if(!d.result||!d.result.b||!d.result.b.length){ used=SYM; d=await byFetch(`${BY}/orderbook?category=spot&symbol=${SYM}&limit=200`); }
+    }catch(e){ used=SYM; d=await byFetch(`${BY}/orderbook?category=spot&symbol=${SYM}&limit=200`); }
     obPair=used;
-    const bids=d.result.b.slice(0,15).map(b=>[+b[0],+b[1]]);
-    const asks=d.result.a.slice(0,15).map(a=>[+a[0],+a[1]]);
+    const allB=d.result.b.map(b=>[+b[0],+b[1]]), allA=d.result.a.map(a=>[+a[0],+a[1]]);
+    const bids=allB.slice(0,15), asks=allA.slice(0,15);
     const bLiq=bids.reduce((a,b)=>a+b[0]*b[1],0),aLiq=asks.reduce((a,b)=>a+b[0]*b[1],0);
-    const mid=(bids[0][0]+asks[0][0])/2;
+    const mid=(allB[0][0]+allA[0][0])/2;
+    depth=bookDepth(allB,allA,mid);
     obR=fp2(bLiq/aLiq);
     obSp=fp(Math.abs(asks[0][0]-bids[0][0])/mid*100,4)+'%';
     obBid='$'+fmtV(bLiq); obAsk='$'+fmtV(aLiq);
@@ -771,7 +1083,7 @@ async function runAll(){
 
   // 4. FUTUROS
   let oi='N/A',oiUSD='N/A',fr='N/A',frRaw=0,ls='N/A',lsRaw=1;
-  let oiChg1h=NaN,oiChg4h=NaN,oiChg24h=NaN,fundTr=null,priceChg1h=NaN;
+  let oiChg1h=NaN,oiChg4h=NaN,oiChg24h=NaN,fundTr=null,priceChg1h=NaN,basis=null;
   setStep('Futuros OI/Funding/L-S','run');
   try{
     const curP=res[TFS[0].tf]?.price||0;
@@ -779,13 +1091,13 @@ async function runAll(){
       byFetch(`${BY}/open-interest?category=linear&symbol=${SYM}&intervalTime=1h&limit=25`),
       byFetch(`${BY}/funding/history?category=linear&symbol=${SYM}&limit=10`),
       byFetch(`${BY}/account-ratio?category=linear&symbol=${SYM}&period=5min&limit=1`),
-      byFetch(`${BY}/kline?category=spot&symbol=${SYM}&interval=60&limit=2`)
+      byFetch(`${BY}/tickers?category=linear&symbol=${SYM}`)
     ]);
     if(r[0].status==='fulfilled'){
       const L=r[0].value.result.list, now=+L[0].openInterest;
       const a1=+L[Math.min(1,L.length-1)].openInterest, a4=+L[Math.min(4,L.length-1)].openInterest, a24=+L[Math.min(24,L.length-1)].openInterest;
       oiChg1h=(now-a1)/a1*100; oiChg4h=(now-a4)/a4*100; oiChg24h=(now-a24)/a24*100;
-      oi=fmtV(now)+' NEAR'; oiUSD='$'+fmtV(now*curP);
+      oi=fmtV(now)+' '+ASSET.name; oiUSD='$'+fmtV(now*curP);
     }
     if(r[1].status==='fulfilled'){
       const L=r[1].value.result.list;
@@ -793,7 +1105,12 @@ async function runAll(){
       fundTr=fundingTrend(L);
     }
     if(r[2].status==='fulfilled'){ const x=r[2].value.result.list[0]; lsRaw=+x.buyRatio/+x.sellRatio; ls=fp2(lsRaw); }
-    if(r[3].status==='fulfilled'){ const k=parseK(r[3].value.result.list); priceChg1h=(k[k.length-1].c-k[0].c)/k[0].c*100; }
+    if(r[3].status==='fulfilled'){
+      const t=r[3].value.result.list[0];
+      basis={perp:+t.lastPrice, mark:+t.markPrice, index:+t.indexPrice, oiValue:+t.openInterestValue};
+      const p1h=+t.prevPrice1h;
+      if(isFinite(p1h)&&p1h>0) priceChg1h=(+t.lastPrice-p1h)/p1h*100;
+    }
     setStep('Futuros OI/Funding/L-S',(r[0].status==='fulfilled')?'done':'err');
   }catch(e){setStep('Futuros OI/Funding/L-S','err')}
 
@@ -812,12 +1129,13 @@ async function runAll(){
   }catch(e){setStep('Fear & Greed','err')}
 
   // 7. TICKER
-  let t24={h:'N/A',l:'N/A',v:'N/A',vq:'N/A',chg:'N/A'};
+  let t24={h:'N/A',l:'N/A',v:'N/A',vq:'N/A',chg:'N/A'}, vol24q=NaN;
   setStep('Ticker 24h','run');
   try{
     const d=await byFetch(`${BY}/tickers?category=spot&symbol=${SYM}`);
     const tk=d.result.list[0];
     t24={h:fp(+tk.highPrice24h),l:fp(+tk.lowPrice24h),v:fmtV(+tk.volume24h),vq:'$'+fmtV(+tk.turnover24h),chg:fp2(+tk.price24hPcnt*100)};
+    vol24q=+tk.turnover24h;
     const chgN=+tk.price24hPcnt*100;
     document.getElementById('priceEl').textContent='$'+fp(+tk.lastPrice);
     document.getElementById('priceEl').style.color=chgN>=0?'#2dd4a0':'#ff6b6b';
@@ -828,14 +1146,18 @@ async function runAll(){
   }catch(e){setStep('Ticker 24h','err')}
 
   const usdc=await usdcFactor();
-  const D={btcD,btcW,corrBTC,btcSpot,btcChg24,obR,obSp,obBid,obAsk,obSig,obPair,obWalls,
+  const port = computePortfolio(await assetPrices());
+  renderPortfolio();
+  const D={btcD,btcW,corrBTC,betaBTC,btcSpot,btcChg24,ethD,corrETH,betaETH,ethSpot,
+           rg,diarias,basis,depth,obR,obSp,obBid,obAsk,obSig,obPair,obWalls,
            oi,oiUSD,fr,frRaw,ls,lsRaw,oiChg1h,oiChg4h,oiChg24h,fundTr,priceChg1h,
-           tape,fg,t24,usdcF:usdc.f,usdcOk:usdc.ok};
+           tape,fg,t24,vol24q,usdcF:usdc.f,usdcOk:usdc.ok,ltA,ltB,port};
 
   // Calcular veredicto ANTES de construir el informe
   lastVeredicto = computeVeredicto(res, TFS, D);
   renderVeredictoBadge(lastVeredicto);
 
+  lastOutputType='informe';
   const R=buildReport(res,TFS,D);
 
   document.getElementById('rbox').textContent=R;
@@ -876,20 +1198,75 @@ function buildReport(res,TFS,D){
   // Veredicto para el texto del informe
   const vd = lastVeredicto || {verdict:'SIN DATOS',emoji:'⚪',action:'',signals:[],conf:'BAJA',bull:0,bear:0};
 
+  // ---- Contexto de cartera (v3) ----
+  const A = ASSET.name;
+  const PT = D.port || {total:0,pct:null,pctEstables:null,reserva:0,otros:0,rows:[],calidad:'SIN DATOS'};
+  const limConc = ASSET.id==='BTC' ? null : LIM_CONCENTRACION;
+  const pctTxt = PT.pct!==null ? PT.pct.toFixed(1)+'%' : 'NO CALCULABLE (faltan holdings o precio)';
+  const totalTxt = PT.total>0 ? '$'+fmtV(PT.total) : 'NO CALCULABLE';
+  const estTxt = PT.pctEstables!==null ? PT.pctEstables.toFixed(1)+'%' : 'n/d';
+  const sobreConc = (limConc!==null && PT.pct!==null && PT.pct>limConc);
+  const alertaConc = sobreConc
+    ? '⚠⚠ ALERTA DE SOBRECONCENTRACIÓN: '+PT.pct.toFixed(1)+'% de la cartera está en '+A+', por encima del límite del '+limConc+'%.\n     QUEDA PROHIBIDO recomendar compras de '+A+' en este informe. Solo mantener, reducir o rotar.\n'
+    : '';
+  const alertaEst = (PT.pctEstables!==null && PT.pctEstables<LIM_ESTABLES_MIN)
+    ? '⚠ Estables por debajo del mínimo: '+PT.pctEstables.toFixed(1)+'% (mínimo '+LIM_ESTABLES_MIN+'%). Reconstruir reserva es prioritario.\n'
+    : '';
+  const carteraLineas = PT.rows.length
+    ? PT.rows.map(r=>'  · '+r.id+': '+fmtV(r.h)+' unidades'+(r.val!==null?' = $'+fmtV(r.val)+(PT.total?' ('+(r.val/PT.total*100).toFixed(1)+'% de cartera)':''):' — precio no disponible')+(r.cost!==null?' · coste medio declarado $'+r.cost:' · coste medio NO DECLARADO')).join('\n')
+    : '  (sin holdings declarados)';
+  const costeNota = (pos.cost==='(sin indicar)')
+    ? 'COSTE MEDIO NO VERIFICABLE — el trader no lo ha declarado. No inventes un número: trabaja sin él.'
+    : 'DECLARADO por el trader, no verificable contra un registro de compras (la app solo guarda rotaciones, no compras). Trátalo como dato del trader, no como MEDIDO.';
+  const betaTxt = isFinite(D.betaBTC) ? D.betaBTC.toFixed(2)+'x [DERIVADO de 48h horarias]' : 'no calculable';
+  const betaEthTxt = isFinite(D.betaETH) ? D.betaETH.toFixed(2)+'x [DERIVADO de 48h horarias]' : 'no calculable';
+
+  // El bloque de cartera solo aparece si el trader ha declarado posición. Si no, se lo
+  // decimos claramente al analista para que no invente porcentajes ni límites.
+  const hayCartera = PT.total>0 && PT.rows.length>0;
+  const bloqueCartera = hayCartera
+? `CONTEXTO DE CARTERA [${PT.calidad}]:
+${alertaConc}${alertaEst}  Activo analizado: ${A}
+  Posición: ${pos.hold} ${A}
+  Coste medio: $${pos.cost} → ${costeNota}
+  Reserva estable (USDC): ${pos.reserve}
+  Valor total de cartera: ${totalTxt}   ·   % en ${A}: ${pctTxt}   ·   % en estables: ${estTxt}
+${carteraLineas}
+  Nota: el valor total sale de los holdings declarados por el trader × precio spot de Bybit,
+  más la reserva y los "otros activos" que haya declarado. Si dice PARCIAL, avísalo antes
+  de aplicar los límites de concentración.
+
+LÍMITES DE RIESGO (innegociables):
+  · Máximo ${LIM_CONCENTRACION}% del valor de cartera en un solo activo distinto de BTC.
+  · Máximo ${LIM_DESPLIEGUE}% de la reserva desplegada en una sola sesión.
+  · Mínimo ${LIM_ESTABLES_MIN}% de la cartera en estables, permanentemente.
+  · Si el % en el activo supera el límite, la primera línea del informe es la alerta de
+    sobreconcentración y queda prohibido recomendar compras de ese activo.
+`
+: `CONTEXTO DE CARTERA: el trader NO ha declarado posición en esta app.
+  · No hables de porcentajes de cartera, valor total ni límites de concentración:
+    no son calculables y no debes inventarlos.
+  · No asumas que tiene posición ni que no la tiene. Si tu recomendación depende de eso,
+    dilo y da las dos ramas en una línea cada una.
+  · Da niveles de precio concretos, no tamaños en % de cartera.
+  · Todo lo demás del método (jerarquías, invalidación, filtro de liquidez, comisiones,
+    escaleras) se aplica igual.
+`;
+
   // Resumen de la bitácora de rotaciones para dar contexto histórico a la IA
   const trades = loadTrades();
   const tst = tradeStats(trades);
   const tradeSummary = trades.length
     ? `  ${tst.total} operaciones registradas · ${tst.cerradas} cerradas (${tst.ganadas} ganadas / ${tst.perdidas} perdidas${tst.precision!==null?` · precisión ${fp2(tst.precision)}%`:''}) · ${tst.abiertas} abiertas\n`
-      + `  NEAR netos acumulados en rotaciones cerradas: ${tst.nearNetos>=0?'+':''}${fp2(tst.nearNetos)}\n`
+      + `  ${ASSET.name} netos acumulados en rotaciones cerradas: ${tst.nearNetos>=0?'+':''}${fp2(tst.nearNetos)}\n`
       + trades.slice(0,5).map(t=>t.estado==='cerrada'
-          ? `  · ${new Date(t.date).toLocaleDateString('es-ES')}: vendió ${fp2(t.nearV)} NEAR @ $${fp2(t.pV)} → recompró @ $${fp2(t.pR)} → ${t.ganNear>=0?'+':''}${fp2(t.ganNear)} NEAR`
-          : `  · ${new Date(t.date).toLocaleDateString('es-ES')}: vendió ${fp2(t.nearV)} NEAR @ $${fp2(t.pV)} → ABIERTA (pendiente recompra)`
+          ? `  · ${new Date(t.date).toLocaleDateString('es-ES')}: vendió ${fp2(t.nearV)} ${ASSET.name} @ $${fp2(t.pV)} → recompró @ $${fp2(t.pR)} → ${t.ganNear>=0?'+':''}${fp2(t.ganNear)} ${ASSET.name}`
+          : `  · ${new Date(t.date).toLocaleDateString('es-ES')}: vendió ${fp2(t.nearV)} ${ASSET.name} @ $${fp2(t.pV)} → ABIERTA (pendiente recompra)`
         ).join('\n')
     : '  Sin operaciones registradas todavía.';
 
   let R=`═══════════════════════════════════════════════════
-NEAR · INFORME PARA ACUMULADOR DE POSICIÓN
+${A} · INFORME DE POSICIÓN SPOT (prompt v3)
 Modo: ${mode==='context'?'CONTEXTO MACRO':'INTRADAY'} (${tfNames})
 Fuente ÚNICA: Bybit (spot ${SYM} + perpetuos) · Generado: ${now}
 ═══════════════════════════════════════════════════
@@ -900,103 +1277,170 @@ ${vd.signals.length?vd.signals.map(s=>'  · '+s).join('\n'):'  · Sin señales d
   Confianza: ${vd.conf} (${vd.bull} alcistas / ${vd.bear} bajistas)
 
 MI POSICIÓN (input del trader):
-  Holdings NEAR: ${pos.hold}   |   Reserva USDC: ${pos.reserve}   |   Coste medio: $${pos.cost}
+  Holdings ${A}: ${pos.hold}   |   Reserva USDC: ${pos.reserve}   |   Coste medio: $${pos.cost}
 
 BITÁCORA DE OPERACIONES (rotaciones registradas manualmente por el trader):
 ${tradeSummary}
 
 ───────────────────────────────────────────────────
-ROL Y REGLAS PARA EL ANALISTA IA
+ROL Y REGLAS PARA EL ANALISTA IA — v3
 ───────────────────────────────────────────────────
-ROL: Eres analista técnico para un ACUMULADOR DE POSICIÓN spot, sin apalancamiento.
-NO eres scalper. El objetivo NO es operar mucho: es PRESERVAR CAPITAL y ACUMULAR
-más NEAR, capturando rango con rotaciones rentables (vender en fuerza / recomprar
-más abajo). Horizonte: días/semanas, con ajuste fino intradía.
+ROL: eres analista técnico y gestor de riesgo para un operador SPOT SIN APALANCAMIENTO.
+Tu trabajo NO es justificar la posición existente: es dar la lectura más precisa posible
+de la estructura, incluida la conclusión de que la tesis está rota.
+Tu métrica de éxito es el VALOR TOTAL DE LA CUENTA EN FIAT, no el número de monedas.
 
-CONTEXTO FIJO (intégralo, no lo cuestiones):
-- Activo: NEAR. Núcleo INTOCABLE = los holdings indicados arriba.
-- Coste medio $${pos.cost} → toda venta por debajo de ese precio NO es "TP": es
-  ROTACIÓN/SALIDA. La métrica de éxito son MONEDAS ganadas en la recompra, no el fiat.
-- Sin capital externo nuevo. Liquidez solo en USDC (operas el par NEAR/USDC).
-- Prioridad nº1: construir reserva USDC vendiendo SOLO en fuerza, NUNCA en
-  debilidad ni sobre soporte.
-- BTC es la correa macro (beta NEAR/BTC ~1,8x). Mira su estructura HTF en este informe.
+${bloqueCartera}
+JERARQUÍA DE MARCOS TEMPORALES (los marcos NO valen lo mismo):
+  1. Mensual  — decide si el activo es comprable
+  2. Semanal  — decide el sesgo
+  3. Diario   — decide la zona
+  4. 4h y menores — deciden únicamente el precio de ejecución
+Reglas duras:
+  · Si el precio está bajo la línea maestra de largo plazo (ver bloque LARGO PLAZO), la
+    tendencia primaria es bajista: toda subida es REBOTE, no tendencia. Prohibida la
+    palabra "acumular"; usa "operar el rebote".
+  · Si el largo plazo y el diario se contradicen, el largo plazo manda para el TAMAÑO y
+    el diario solo para el TIMING.
+  · Las señales de 1m y 5m no son argumentos direccionales: sirven para colocar la orden.
 
-REGLAS DE DATOS (máxima prioridad):
-- Cada cifra va etiquetada: [MEDIDO] (de la API) / [DERIVADO] (calculado o estimado).
-  Nunca presentes un derivado como medido.
-- Usa EXCLUSIVAMENTE las cifras de ESTE informe para lo técnico. NO recalcules
-  indicadores con otras fuentes (evita el descuadre tipo "EMA200 de otra web").
-- Si un dato dice "DATO NO DISPONIBLE", trátalo como ausente; no lo inventes.
-  Distingue "0,00%" (dato real) de ausente.
-- Heatmap/clústeres de liquidación = DERIVADO, contexto débil. PROHIBIDO basar
-  recompras o invalidación en ellos.
-- CVD no disponible → usa OBV como proxy, diciéndolo.
-- NO uses fechas macro fijas: pídeme verificar el calendario macro EN VIVO por web
-  (IPC/CPI, PCE, FOMC/Powell, NFP, PIB). Igual para unlocks de NEAR y noticias.
+AVISO SOBRE LA LÍNEA MAESTRA: Bybit solo conserva unas 250-340 velas semanales y 55-80
+mensuales por par, así que la EMA200 mensual NO EXISTE y la EMA200 semanal saldría mal
+sembrada. La línea maestra de este informe es la EMA50 semanal, confirmada por la EMA100
+semanal y la EMA20 mensual, y cada una viene con el número de velas que la sostiene.
+Cuando cites el largo plazo, cita esas líneas, no una EMA200 mensual inexistente.
+
+VALIDACIÓN E INVALIDACIÓN DE TESIS (los tres, siempre):
+  · INVALIDACIÓN ESTRUCTURAL: nivel bajo el cual la tesis alcista muere y toca REDUCIR,
+    no promediar.
+  · VALIDACIÓN: nivel sobre el cual el activo deja de ser rebote y pasa a tendencia
+    (normalmente la línea maestra de largo plazo).
+  · CADUCIDAD: si el precio lleva más de ${CADUCIDAD_SEMANAS} semanas sin alcanzar
+    ninguno de los dos, la posición está muerta por aburrimiento y debe reducirse.
+    El capital parado también cuesta.
+PROHIBIDO recomendar promediar a la baja por debajo del precio de invalidación.
+
+JERARQUÍA DE EVIDENCIA (clasifica cada señal antes de usarla):
+  NIVEL 1 — ESTRUCTURA (deciden): EMAs de marcos altos · volume profile (POC/VAH/VAL) ·
+    máximos y mínimos previos · fibonacci de marcos altos · estructura de BTC
+  NIVEL 2 — FLUJO REAL (confirman o desmienten): volumen frente a su media · open interest
+    y su variación · funding · muros reales del libro · velocidad y delta de la cinta
+  NIVEL 3 — CONTEXTO (matizan, nunca deciden): heatmaps con OI real · RSI y MACD ·
+    Fear & Greed · ratio long/short · Ichimoku
+  NIVEL 4 — RUIDO (informativo, nunca citado como argumento): Elliott automático ·
+    similitud fractal · clústeres modelados por porcentaje fijo · la señal automática
+    de este informe
+REGLA DE CONFLUENCIA: una entrada necesita AL MENOS DOS SEÑALES DE NIVEL 1 en la misma
+zona. Los niveles 2 y 3 suben la confianza, nunca la crean.
+
+MAPAS DE LIQUIDACIÓN — distingue la fuente:
+  · El bloque de clústeres de este informe usa porcentajes fijos desde el precio actual.
+    Eso es aritmética, no un dato: se desplaza con el precio. Es NIVEL 4 y nunca cuenta
+    como confluencia.
+  · Un heatmap externo con OI real (Coinglass o equivalente) sí es dato: NIVEL 3, puede
+    CONFIRMAR una zona que ya sostienen dos señales de nivel 1.
+  · En ambos casos: un clúster es un IMÁN, no un suelo. El precio va hacia la liquidez y
+    suele atravesarla. Nunca coloques una compra justo encima de un clúster denso
+    esperando rebote: ahí es donde el precio acelera. Colócala por debajo, en estructura real.
+
+FILTRO DE LIQUIDEZ (antes de dar cualquier nivel):
+  · Orden > 0,5% del volumen 24h → avisa de que puede no ejecutarse y propón fraccionarla.
+  · Spread > 0,5% → avisa de que la entrada y la salida se comen el margen esperado.
+  · Compras: 1-2 ticks POR ENCIMA de los muros bid. Ventas: 1-2 ticks POR DEBAJO de los
+    muros ask. Nunca sobre el muro.
+
+ESCALERA DE VENTA (toda posición lleva escalera activa, en ambas direcciones):
+  · Al alza: 3-4 tramos hasta resistencias estructurales reales. Más peso en el primer
+    tramo si el momentum de marcos altos está girando.
+  · A la baja (defensiva): tramo que se ejecuta si el precio cierra bajo la invalidación.
+    Sin esto, la escalera asume que el precio sube.
+  Por cada tramo: precio, unidades, % de posición, ingreso neto con comisiones, nivel
+  estructural que lo justifica y probabilidad estimada de ejecución.
+
+COMISIONES: todo cálculo incluye comisión de ida y vuelta. Si una rotación deja menos de
+un 1,5% neto tras comisiones y spread, di explícitamente que NO COMPENSA OPERAR.
+
+MACRO Y CATALIZADORES: indica qué verificar EN VIVO antes de dar niveles — calendario
+macro de hoy y los próximos 3 días (IPC, PPI, PCE, FOMC, NFP, PIB) y eventos del activo
+(unlocks, upgrades, conferencias, listados). Con evento de alto impacto en menos de 48h:
+solo órdenes límite ya colocadas, nunca ejecución de mercado ese día.
+Un catalizador anunciado con más de una semana de antelación YA ESTÁ DESCONTADO: trátalo
+como riesgo de "sell the news", no como razón para comprar.
+
+CALIDAD DE DATOS:
+  · Cada cifra va etiquetada [MEDIDO] (de la API) o [DERIVADO] (calculado o estimado).
+    Nunca presentes un derivado como medido.
+  · Usa EXCLUSIVAMENTE las cifras de este informe para lo técnico. No recalcules
+    indicadores con otras fuentes.
+  · Si un dato dice DATO NO DISPONIBLE, trátalo como ausente y dilo. No lo estimes.
+    Distingue "0,00%" (dato real) de ausente.
+  · Una similitud fractal del 100% en 1m es ruido estadístico, no una señal.
+  · CVD no disponible → usa OBV como proxy, diciéndolo.
+  · La señal automática de este informe NO MANDA. Si contradice la estructura de marcos
+    altos, dilo y explica por qué.
 
 PAR OPERADO (conversión a USDC):
-- Operas NEAR/USDC. Los precios de este informe están en USDT (mercado profundo).
-- Factor: 1 USDC = ${fp(D.usdcF,4)} USDT. precio_USDC = precio_USDT / ${fp(D.usdcF,4)}.
-- Da TUS niveles de acción (compra/venta/recompra/invalidación) EN USDC. Tienes la
-  equivalencia de los niveles clave en la sección EQUIVALENCIA más abajo.
+  · Operas ${A}/USDC. Los precios de este informe están en USDT (mercado más profundo).
+  · Factor: 1 USDC = ${fp(D.usdcF,4)} USDT. precio_USDC = precio_USDT / ${fp(D.usdcF,4)}.
+  · Da TUS niveles de acción (compra, venta, recompra, invalidación) EN USDC. Tienes la
+    equivalencia de los niveles clave en la sección EQUIVALENCIA más abajo.
 
-JERARQUÍA DE DECISIÓN:
-- Si los datos PRINCIPALES (estructura BTC + tendencia NEAR + nivel clave) se
-  contradicen entre sí → la decisión es ESPERAR. El ruido menor NO bloquea.
+FORMATO DE SALIDA:
+VEREDICTO (máx. 5 líneas): decisión · motivo llano · nivel clave · invalidación ·
+confianza 0-100. Decisiones válidas: COMPRAR / MANTENER / VENDER X% / REDUCIR / ROTAR /
+ESPERAR. ESPERAR y NO OPERAR son respuestas correctas y frecuentes: no fuerces una
+operación en cada informe.
+Después, en este orden:
+  · ESTADO DE CARTERA — valor total, % por activo, alerta si supera límites
+  · RÉGIMEN — una categoría (tendencial alcista / tendencial bajista / rango / acumulación
+    / distribución / pánico / capitulación / euforia), justificada en una línea
+  · ESTRUCTURA POR MARCO — largo plazo → semanal → diario → 4h, en ese orden
+  · NIVELES — soportes y resistencias, cada uno con la evidencia que lo sostiene y su
+    nivel de jerarquía (1 a 4)
+  · ESCALERAS — al alza y defensiva
+  · PROBABILIDADES — suman 100%. Si los datos son ambiguos, dilo y usa repartos cercanos
+    a 33/33/33 en vez de fingir convicción
+  · CALIDAD DE SEÑAL — A+ a D, y qué falta para subir de nota
+  · RIESGO/BENEFICIO — entrada, invalidación, objetivo, R:R. Si el R:R es peor que 1:2,
+    di que la operación no merece la pena
+  · QUÉ ME ESTOY PERDIENDO — un párrafo con el mejor argumento contra tu propia conclusión
 
-FORMATO DE RESPUESTA:
-- Empieza SIEMPRE con VEREDICTO (máx 5 líneas): decisión
-  (COMPRAR / MANTENER / VENDER X% / ESPERAR) · motivo en lenguaje llano · nivel
-  clave + precio de invalidación · confianza 0-100 · línea de rotación si hay posición.
-- Informe completo SOLO si los datos lo justifican. No inventes objetivos de % fijos.
-- Si mi acción propuesta contradice mi plan escrito, dímelo ANTES de nada.
-
-LECTURA CUANTITATIVA (inclúyela siempre, como bloque aparte tras el veredicto):
-- RÉGIMEN DE MERCADO: clasifica en una categoría (tendencial alcista / tendencial
-  bajista / rango / acumulación / distribución / pánico / capitulación / euforia)
-  y justifica en 1 línea con qué datos de este informe lo sustentas.
-- PROBABILIDADES DE ESCENARIO (próximas horas/días, deben sumar ~100%):
-  continuación de tendencia actual · rebote técnico · giro de tendencia. Basa el
-  reparto en confluencia real de señales, no en corazonada; si los datos son
-  ambiguos, dilo y usa probabilidades cercanas a 33/33/33 en vez de forzar convicción.
-- FASE DE WYCKOFF (si la estructura de precio/volumen la sugiere con claridad):
-  fase y probabilidad estimada. Si no hay estructura reconocible, escribe
-  "sin fase de Wyckoff identificable" — no la fuerces.
-- CICLO MÁS AMPLIO: si el contexto HTF (diario/semanal de NEAR y BTC) lo permite,
-  sitúa dónde estamos dentro del ciclo (ej. "posible tramo final de fase bajista",
-  "inicio de recuperación", "sin datos suficientes para ubicar el ciclo").
-- CALIDAD DE LA SEÑAL: nota A+/A/B/C/D según cuántas confirmaciones independientes
-  (estructura NEAR, BTC, order flow, funding/OI, sentimiento) apuntan en la misma
-  dirección. Explica qué falta para subir de nota.
-- RIESGO/BENEFICIO de la operación propuesta (si hay una): entrada, stop lógico,
-  objetivo probable, ratio R:R. Si no hay operación clara, omite este punto.
-- SI TENGO POSICIÓN ABIERTA, enmárcalo como ROTACIÓN, no como venta simple: % de
-  posición a rotar, objetivo de recompra, NEAR netos esperados si se cumple, y
-  probabilidad estimada de que la recompra se ejecute en ese nivel.
-- Estas etiquetas son apoyo a la decisión, no verdad absoluta: si los datos no dan
-  para una lectura clara en algún punto, dilo explícitamente en vez de inventar.
-
-- Cierra preguntando si desarrollo algún punto.
+TONO: directo, sin adornos. Si los datos no dan para una lectura clara, dilo. Si mi acción
+propuesta contradice la estructura, dímelo antes que nada. No suavices una conclusión
+negativa: prefiero perder una oportunidad que perder capital.
 
 ───────────────────────────────────────────────────
-DATOS GLOBALES — NEAR [MEDIDO]
+DATOS GLOBALES — ${A} [MEDIDO]
 ───────────────────────────────────────────────────
 Precio:     $${fp(p)}
 Máx 24h:    $${D.t24.h}  |  Mín 24h: $${D.t24.l}
-Vol 24h:    ${D.t24.v} NEAR (${D.t24.vq})
+Vol 24h:    ${D.t24.v} ${A} (${D.t24.vq})
 Cambio 24h: ${D.t24.chg}%
 
 ───────────────────────────────────────────────────
-EQUIVALENCIA EN TU PAR NEAR/USDC  [factor 1 USDC = ${fp(D.usdcF,4)} USDT${usdcNote}]
+EQUIVALENCIA EN TU PAR ${A}/USDC  [factor 1 USDC = ${fp(D.usdcF,4)} USDT${usdcNote}]
 ───────────────────────────────────────────────────
 ${usdcLevels}
   (Diferencia USDT↔USDC suele ser de céntimos; el factor la captura si el mercado se desvía.)
 
 ───────────────────────────────────────────────────
+RANGOS, BASIS Y PROFUNDIDAD [datos de mercado, cero input del trader]
+───────────────────────────────────────────────────
+${rangosBlock(D.rg, p)}
+${basisBlock(D.basis, p)}
+${depthBlock(D.depth, p, D.vol24q)}
+───────────────────────────────────────────────────
+LARGO PLAZO — LÍNEA MAESTRA [precio MEDIDO · EMAs DERIVADO]  ← NIVEL 1, decide
+───────────────────────────────────────────────────
+${ltBlock(A+' (semanal + mensual):', D.ltA)}
+${ASSET.id==='BTC' ? '' : ltBlock('BTC (semanal + mensual):', D.ltB)}
+  Regla: si el precio está bajo la línea maestra, toda subida es rebote, no tendencia.
+  Caducidad de tesis: ${CADUCIDAD_SEMANAS} semanas sin tocar validación ni invalidación.
+
+───────────────────────────────────────────────────
 ESTRUCTURA HTF DE BTC (la correa macro) [precio MEDIDO · niveles DERIVADO]
 ───────────────────────────────────────────────────
-BTC spot: ${D.btcSpot} (24h ${D.btcChg24>=0?'+':''}${D.btcChg24}%)  ·  Correlación NEAR/BTC (48h): ${D.corrBTC} ${+D.corrBTC>0.7?'(alta — BTC decisivo)':+D.corrBTC>0.5?'(media)':'(baja)'}
+BTC spot: ${D.btcSpot} (24h ${D.btcChg24>=0?'+':''}${D.btcChg24}%)  ·  Correlación ${A}/BTC (48h): ${D.corrBTC} ${+D.corrBTC>0.7?'(alta — BTC decisivo)':+D.corrBTC>0.5?'(media)':'(baja)'}
 `;
   const htfLine=(lbl,h)=>{
     if(!h) return `  ${lbl}: DATO NO DISPONIBLE\n`;
@@ -1005,7 +1449,11 @@ BTC spot: ${D.btcSpot} (24h ${D.btcChg24>=0?'+':''}${D.btcChg24}%)  ·  Correlac
   };
   R+=htfLine('DIARIO',D.btcD);
   R+=htfLine('SEMANAL',D.btcW);
-  R+=`  → Con beta ~1,8x: si BTC pierde su nivel clave, NEAR cae ~1,8x más fuerte. Si BTC aguanta sobre soporte, hay margen para rotar NEAR.
+  R+=`  ETH spot: ${D.ethSpot}  ·  Correlación ${A}/ETH (48h): ${D.corrETH}  ·  Beta ${A}/ETH: ${betaEthTxt}
+${D.ethD?`  ETH diario: ${D.ethD.trend} · precio ${fmtUSD(D.ethD.last)} · EMA50 ${fmtUSD(D.ethD.e50)} ${D.ethD.last>D.ethD.e50?'SOBRE✓':'BAJO✗'} · soporte≈${fmtUSD(D.ethD.sop)} · resistencia≈${fmtUSD(D.ethD.res)}`:'  ETH diario: DATO NO DISPONIBLE'}
+  → Si ${A} corre con ETH más que con BTC, la correa que manda es ETH: mira su estructura antes de decidir.
+  Beta ${A}/BTC medida en 48h: ${betaTxt}
+  → Si BTC pierde su nivel clave, ${A} cae aproximadamente ${isFinite(D.betaBTC)?D.betaBTC.toFixed(2):'?'} veces más fuerte. Si BTC aguanta sobre soporte, hay margen para rotar ${A}.
 
 ───────────────────────────────────────────────────
 ORDER BOOK — par ${D.obPair} [MEDIDO]
@@ -1013,7 +1461,7 @@ ORDER BOOK — par ${D.obPair} [MEDIDO]
 Ratio Bid/Ask: ${D.obR}  |  Señal: ${D.obSig}
 Liquidez bids: ${D.obBid}  |  asks: ${D.obAsk}  |  Spread: ${D.obSp}
 ${D.obWalls}
-${D.obPair===SYM?'  ⚠ Libro de NEAR/USDT (no hay datos de USDC o están vacíos). Verifica spread real en NEAR/USDC antes de ejecutar.':'  ✓ Libro del par que operas (USDC).'}
+${D.obPair===SYM?`  ⚠ Libro de ${A}/USDT (no hay datos de USDC o están vacíos). Verifica spread real en ${A}/USDC antes de ejecutar.`:'  ✓ Libro del par que operas (USDC).'}
 
 ───────────────────────────────────────────────────
 FUTUROS (perpetuos Bybit) [MEDIDO]
@@ -1037,7 +1485,7 @@ ${clockReport()}
 MACRO (verificación obligatoria EN VIVO):
   ⚠ NO hay fechas macro en este informe a propósito. Antes de operar, verifica por web
   el calendario de HOY y próximos 2-3 días: IPC/CPI, PCE, FOMC/Powell, NFP, PIB.
-  Verifica también: próximo unlock de NEAR (fecha + % circulante) y noticias del activo.
+  Verifica también: próximo unlock de ${A} (fecha + % circulante) y noticias del activo.
   Si hay evento de alto impacto inminente → avísalo primero y recomienda reducir exposición.
 
 `;
@@ -1071,7 +1519,7 @@ Similitud fractal: ${d.rows.map(r=>`${r.lbl}:${r.sc}%`).join(' | ')||'N/A'}
   }
 
   R+=`═══════════════════════════════════════════════════
-FIN · NEAR · ${now} · Fuente única: Bybit
+FIN · ${A} · ${now} · Fuente única: Bybit
 ═══════════════════════════════════════════════════`;
 
   if(lastReport){
@@ -1133,6 +1581,7 @@ async function runPulse(){
   const btn=document.getElementById('btnPulse'); btn.disabled=true; btn.textContent='⟳ Pulso...';
   document.getElementById('btnGo').disabled=true;
 
+  lastOutputType='informe';
   let price=lastReport.price,rsi1m=NaN,rsi5m=NaN;
   let oiChg1h=NaN,fr='N/A',ls='N/A',lsRaw=1,obR='N/A',obSig='N/A',obWalls='';
   try{
@@ -1166,7 +1615,7 @@ async function runPulse(){
   const dRsi5=isFinite(rsi5m)&&isFinite(lastReport.rsi5m)?(rsi5m-lastReport.rsi5m):NaN;
 
   let R=`═══════════════════════════════════════════════════
-NEAR · PULSO RÁPIDO (vs informe de hace ${diffMin} min)
+${ASSET.name} · PULSO RÁPIDO (vs informe de hace ${diffMin} min)
 ${now} · Fuente: Bybit · NO sustituye al informe completo
 ═══════════════════════════════════════════════════
 Instrucción IA: di SOLO qué ha cambiado y si altera el plan. VEREDICTO en 3 líneas máx.
@@ -1198,16 +1647,175 @@ ${lastReport.fr!==fr?'  ⚡ El funding ha cambiado — revisa sesgo de derivados
   isRunning=false;
 }
 
+// ==================== CAPA DE CARTERA (comparativa semanal) ====================
+// Peticiones ligeras: por activo, 1 ticker + 2 klines de largo plazo + 1 diario.
+// Las de largo plazo se cachean 15 min, así que tras un informe completo casi todas
+// salen de caché. Se lanzan activo por activo con pausa, nunca todas de golpe.
+async function runCartera(){
+  if(isRunning) return;
+  isRunning=true;
+  const btn=document.getElementById('btnPort'); btn.disabled=true; btn.textContent='⟳ Comparando activos...';
+  document.getElementById('btnGo').disabled=true; document.getElementById('btnPulse').disabled=true;
+  document.getElementById('veredBox').classList.remove('show');
+  steps=ASSET_IDS.map(id=>({l:'Datos de '+id,s:'wait'}));
+  document.getElementById('progBox').style.display='block'; setStep(steps[0].l,'wait');
+
+  const out={};
+  try{
+    for(const id of ASSET_IDS){
+      setStep('Datos de '+id,'run');
+      const cfg=ASSETS[id];
+      const r=await Promise.allSettled([
+        byFetch(`${BY}/tickers?category=spot&symbol=${cfg.sym}`,45000),
+        byFetch(`${BY}/kline?category=spot&symbol=${cfg.sym}&interval=D&limit=250`,600000),
+        byFetch(`${BY}/kline?category=linear&symbol=${cfg.sym}&interval=W&limit=500`,900000),
+        byFetch(`${BY}/kline?category=linear&symbol=${cfg.sym}&interval=M&limit=200`,900000)
+      ]);
+      const o={id};
+      try{ if(r[0].status==='fulfilled'){ const t=r[0].value.result.list[0];
+        o.price=+t.lastPrice; o.chg24=+t.price24hPcnt*100; o.volQ=+t.turnover24h; } }catch(e){}
+      try{ if(r[1].status==='fulfilled') o.d=htfStruct(parseK(r[1].value.result.list)); }catch(e){}
+      try{
+        const kl={w:null,m:null};
+        if(r[2].status==='fulfilled') kl.w=parseK(r[2].value.result.list);
+        if(r[3].status==='fulfilled') kl.m=parseK(r[3].value.result.list);
+        o.lt=ltStruct(kl);
+      }catch(e){}
+      out[id]=o;
+      setStep('Datos de '+id, o.price?'done':'err');
+      await sleep(600);
+    }
+
+    const prices={}; ASSET_IDS.forEach(id=>{ if(out[id]&&out[id].price) prices[id]=out[id].price; });
+    lastPrices=prices; renderPortfolio();
+    const PT=computePortfolio(prices);
+    const now=new Date().toLocaleString('es-ES');
+
+    const pad=(t,n)=>String(t).padEnd(n).slice(0,n);
+    const filas=ASSET_IDS.map(id=>{
+      const o=out[id]||{}, h=holdingsOf(id);
+      const val=(h>0&&o.price)?h*o.price:0;
+      const pctC=PT.total>0?(val/PT.total*100).toFixed(1)+'%':'—';
+      const lt=o.lt;
+      const maestra=lt&&lt.w50.ok?(lt.w50.over?'ENCIMA ✓':'DEBAJO ✗')+' ('+(lt.w50.dist>=0?'+':'')+lt.w50.dist.toFixed(1)+'%)':'n/d';
+      const mens=lt&&lt.m20.ok?(lt.m20.over?'ENCIMA ✓':'DEBAJO ✗'):'n/d';
+      const vol=o.volQ?'$'+fmtV(o.volQ):'n/d';
+      const dia=o.d?o.d.trend:'n/d';
+      const sg=x=>(x>=0?'+':'')+x.toFixed(1)+'%';
+      const dist=o.d&&o.price?('S '+sg((o.d.sop-o.price)/o.price*100)+' / R '+sg((o.d.res-o.price)/o.price*100)):'n/d';
+      return '| '+pad(id,5)+' | '+pad(pctC,9)+' | '+pad(maestra,18)+' | '+pad(mens,9)+' | '+pad(vol,9)+' | '+pad(dia,8)+' | '+dist+' |';
+    }).join('\n');
+
+    const detalle=ASSET_IDS.map(id=>{
+      const o=out[id]||{};
+      if(!o.lt) return id+': DATO NO DISPONIBLE';
+      return id+' — precio $'+(o.price?fp(o.price,ASSETS[id].prec):'n/d')+' (24h '+(isFinite(o.chg24)?(o.chg24>=0?'+':'')+o.chg24.toFixed(2)+'%':'n/d')+')\n'
+        +'  '+o.lt.w50.txt+'\n  '+o.lt.w100.txt+'\n  '+o.lt.m20.txt+'\n'
+        +'  → RÉGIMEN LARGO PLAZO: '+o.lt.regimen+'\n     '+o.lt.operativa+'\n'
+        +(o.d?'  Diario: '+o.d.trend+' · RSI '+fp2(o.d.rsi)+' · soporte $'+fp(o.d.sop,ASSETS[id].prec)+' · resistencia $'+fp(o.d.res,ASSETS[id].prec)+'\n':'  Diario: DATO NO DISPONIBLE\n');
+    }).join('\n');
+
+    const conc=ASSET_IDS.map(id=>{
+      const h=holdingsOf(id), p=prices[id], v=(h>0&&p)?h*p:0;
+      if(h<=0) return null;
+      const pc=PT.total>0?v/PT.total*100:0;
+      const lim=id==='BTC'?null:LIM_CONCENTRACION;
+      return '  '+id+': '+pc.toFixed(1)+'%'+(lim!==null&&pc>lim?'  ⚠ SUPERA EL LÍMITE DEL '+lim+'% — prohibido comprar más':'');
+    }).filter(Boolean).join('\n')||'  (sin holdings declarados)';
+
+    let R=`═══════════════════════════════════════════════════
+CAPA DE CARTERA · COMPARATIVA ${ASSET_IDS.join(' · ')}
+${now} · Fuente única: Bybit · Informe semanal, no intradía
+═══════════════════════════════════════════════════
+
+ROL: mismo analista de riesgo del informe individual. Aquí NO analizas un activo:
+comparas todos con los mismos criterios y decides dónde debe estar el capital.
+
+REGLAS DE ESTA CAPA (innegociables):
+  · Ordena por CALIDAD ESTRUCTURAL, no por lo que ya tengo en cartera.
+  · Si un activo que tengo puntúa peor que uno que no tengo, di explícitamente que la
+    ROTACIÓN es la operación de mayor esperanza matemática.
+  · Tener ya un activo NO es argumento para mantenerlo.
+  · BTC entra siempre en la comparación, lo tenga o no.
+  · Máximo ${LIM_CONCENTRACION}% de la cartera en un activo distinto de BTC.
+    Mínimo ${LIM_ESTABLES_MIN}% en estables. Máximo ${LIM_DESPLIEGUE}% de la reserva por sesión.
+  · La línea maestra de largo plazo es la EMA50 semanal (Bybit no tiene histórico para
+    una EMA200 mensual: no la cites). Bajo esa línea, toda subida es rebote.
+  · El R:R y el veredicto los pones tú: la app da estructura y distancias, no conclusiones.
+
+───────────────────────────────────────────────────
+ESTADO DE CARTERA [DERIVADO · ${PT.calidad}]
+───────────────────────────────────────────────────
+Valor total: ${PT.total>0?'$'+fmtV(PT.total):'NO CALCULABLE'}
+Reserva estable (USDC): $${fmtV(PT.reserva)} (${PT.pctEstables!==null?PT.pctEstables.toFixed(1)+'%':'n/d'})${PT.otros?`
+Otros activos declarados fuera de la app: $${fmtV(PT.otros)}`:''}
+Concentración por activo:
+${conc}
+
+───────────────────────────────────────────────────
+TABLA COMPARATIVA
+───────────────────────────────────────────────────
+| Act.  | % cartera | vs EMA50 semanal   | EMA20 mes | Vol 24h   | Diario   | Dist. soporte / resistencia |
+|-------|-----------|--------------------|-----------|-----------|----------|-----------------------------|
+${filas}
+
+───────────────────────────────────────────────────
+DETALLE POR ACTIVO [precio MEDIDO · EMAs y estructura DERIVADO]
+───────────────────────────────────────────────────
+${detalle}
+───────────────────────────────────────────────────
+QUÉ ESPERO DE TI
+───────────────────────────────────────────────────
+1. Ranking de los ${ASSET_IDS.length} activos por calidad estructural, con una línea de motivo cada uno.
+2. ¿Hay rotación con esperanza matemática superior a mantener lo que tengo? Si la hay,
+   di desde qué activo, hacia cuál, qué % y a qué precio.
+3. ¿Algún activo supera el límite de concentración? ¿Qué hago exactamente?
+4. ¿Está la reserva por debajo del mínimo? ¿Cómo la reconstruyo sin vender en debilidad?
+5. QUÉ ME ESTOY PERDIENDO: el mejor argumento contra tu propio ranking.
+═══════════════════════════════════════════════════`;
+
+    document.getElementById('hintBox').innerHTML='<strong>Capa de cartera lista.</strong> Es un informe semanal de asignación, no una señal de entrada. Cópialo y pégalo en tu agente IA.';
+    document.getElementById('rbox').textContent=R;
+    document.getElementById('reportArea').classList.add('show');
+    lastOutputType='cartera';
+  }catch(err){
+    document.getElementById('rbox').textContent='⚠ Error generando la capa de cartera: '+(err.message||err);
+    document.getElementById('reportArea').classList.add('show');
+  }finally{
+    btn.disabled=false; btn.textContent='📊 Capa de cartera (comparar '+ASSET_IDS.join(' · ')+')';
+    document.getElementById('btnGo').disabled=false; document.getElementById('btnPulse').disabled=false;
+    isRunning=false;
+  }
+}
+
 // ==================== COPIAR (con prompt contextual) ====================
 async function copyReport(){
   const data = document.getElementById('rbox').textContent;
   const pos = getPos();
 
+  if(lastOutputType==='cartera'){
+    const txtC = data + `
+
+═══════════════════════════════════════════════════
+MI PREGUNTA
+═══════════════════════════════════════════════════
+Dame el ranking, la rotación de mayor esperanza matemática si la hay, y qué hago esta
+semana con la reserva. Si la respuesta correcta es no tocar nada, dilo.`;
+    try{ await navigator.clipboard.writeText(txtC); }
+    catch(e){
+      const ta=document.createElement('textarea'); ta.value=txtC; ta.style.cssText='position:fixed;opacity:0';
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+    }
+    const bc=document.querySelector('.btn-copy'); bc.textContent='✓ Copiado!';
+    setTimeout(()=>bc.textContent='📋 Copiar informe completo',2500);
+    return;
+  }
+
   // Pregunta dinámica según el veredicto
   let pregunta = '¿Qué hago ahora con mi posición? Dame veredicto y niveles clave en USDC.';
   if(lastVeredicto){
     if(lastVeredicto.verdict === 'PRECAUCIÓN'){
-      pregunta = `¿Debo vender parte de mi posición ahora? ¿A qué precio y qué % de mis ${pos.hold} NEAR? Dame el nivel exacto en USDC.`;
+      pregunta = `¿Debo vender parte de mi posición ahora? ¿A qué precio y qué % de mis ${pos.hold} ${ASSET.name}? Dame el nivel exacto en USDC.`;
     } else if(lastVeredicto.verdict === 'FAVORABLE'){
       pregunta = `¿Es buen momento para acumular? ¿A qué precio entro con mis ${pos.reserve} USDC de reserva? Dame el nivel exacto en USDC y el % de la reserva a usar.`;
     } else {
@@ -1219,7 +1827,7 @@ async function copyReport(){
 `\n\n═══════════════════════════════════════════════════
 MI PREGUNTA
 ═══════════════════════════════════════════════════
-Posición actual: ${pos.hold} NEAR · coste medio $${pos.cost} · reserva ${pos.reserve} USDC
+Posición actual: ${pos.hold} ${ASSET.name} · coste medio $${pos.cost} · reserva ${pos.reserve} USDC
 ${pregunta}`;
 
   try{ await navigator.clipboard.writeText(txt); }
@@ -1251,12 +1859,15 @@ async function loadPrice(){
   }catch(e){document.getElementById('priceEl').textContent='Sin conexión'}
 }
 
-loadPos();
+migrarV2();
+setAsset(ASSET.id);   // pinta selector, títulos y carga la posición del activo activo
 restoreLastReport();  // restaura último informe del historial al arrancar
 renderTrades();       // pinta bitácora de rotaciones guardada
 loadPrice();
+refreshPortfolio();
 renderClock();
 setInterval(loadPrice,15000);
+setInterval(refreshPortfolio,60000);
 setInterval(renderClock,30000);
 </script>
 <script src="liquidez.js"></script>
