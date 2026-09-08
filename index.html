@@ -412,10 +412,18 @@ function renderTrades(){
 }
 
 // ==================== SELECTOR DE ACTIVO ====================
+// Puente con liquidez.js: publica el activo activo en window para que ese módulo
+// (liquidaciones reales de Binance) analice la misma moneda que el informe.
+function publicarActivo(){
+  window.APP_ASSET = {id:ASSET.id, name:ASSET.name, sym:ASSET.sym, symUsdc:ASSET.symUsdc, prec:ASSET.prec};
+  if(typeof window.LIQ_SET_ASSET==='function') window.LIQ_SET_ASSET();
+}
+
 function setAsset(id){
   if(isRunning) return;
   if(!ASSETS[id]) return;
   ASSET=ASSETS[id]; SYM=ASSET.sym; SYM_USDC=ASSET.symUsdc; PRECISION=ASSET.prec;
+  publicarActivo();
   try{ localStorage.setItem('app_asset',id); }catch(e){}
   ASSET_IDS.forEach(k=>{ const b=document.getElementById('as'+k); if(b) b.classList.toggle('active',k===id); });
   document.getElementById('hTitle').textContent=`▲ ${ASSET.name}/USDT · Informe de posición`;
@@ -898,16 +906,9 @@ function clockReport(){
 }
 
 // ==================== LIQUIDACIÓN Y TAPE ====================
-function liqClusters(price, lsRaw){
-  if(!price) return '';
-  const bands=[{lev:'100x',d:0.010},{lev:'50x',d:0.020},{lev:'25x',d:0.040},{lev:'10x',d:0.100}];
-  const ls=(typeof lsRaw==='number'&&isFinite(lsRaw)&&lsRaw>0)?lsRaw:1;
-  const wLong=ls/(1+ls), wShort=1/(1+ls);
-  const dens=w=>w>0.58?'●●● densa':w>0.45?'●● media':'● ligera';
-  const dn=bands.map(b=>`${b.lev} $${fp(price*(1-b.d))} (-${(b.d*100).toFixed(1)}%)`).join(' | ');
-  const up=bands.map(b=>`${b.lev} $${fp(price*(1+b.d))} (+${(b.d*100).toFixed(1)}%)`).join(' | ');
-  return `CLÚSTERES DE LIQUIDACIÓN [DERIVADO/ESTIMADO — contexto débil, NO decidir con esto]:\n  ↓ Imanes BAJISTAS (liquidan LONGS, ${dens(wLong)}): ${dn}\n  ↑ Imanes ALCISTAS (liquidan SHORTS, ${dens(wShort)}): ${up}\n  Modelo desde precio actual ponderado por L/S=${fp2(ls)}. NO son posiciones reales.`;
-}
+// Los clústeres de liquidación por porcentaje fijo se han eliminado: eran aritmética
+// que se desplazaba con el precio (NIVEL 4 puro). Los sustituyen las zonas por swings
+// ponderadas por volumen y las liquidaciones REALES de liquidez.js.
 async function tapeSpeed(){
   try{
     const d=await byFetchLimited(`${BY}/recent-trade?category=spot&symbol=${SYM}&limit=50`,5000);
@@ -1474,7 +1475,7 @@ Funding Rate:  ${D.fr}  ${D.frRaw>0.01?'(longs pagan — sobrecargado)':D.frRaw<
 ${D.fundTr?`  Tendencia funding (últimas ${D.fundTr.n} muestras): ${D.fundTr.dir}`:'  Tendencia funding: DATO NO DISPONIBLE'}
 Long/Short:    ${D.ls}  ${D.lsRaw>1.2?'(muchos largos — riesgo flush)':D.lsRaw<0.8?'(muchos cortos — posible squeeze)':'(equilibrado)'}
 
-${liqClusters(p,D.lsRaw)}
+${typeof window.LIQ_REPORT==='function' ? window.LIQ_REPORT() : 'LIQUIDACIONES Y POSICIONAMIENTO: módulo liquidez.js no cargado.'}
 
 ${tapeLine(D.tape)}
 
@@ -1860,6 +1861,7 @@ async function loadPrice(){
 }
 
 migrarV2();
+window.APP_ASSET = {id:ASSET.id, name:ASSET.name, sym:ASSET.sym, symUsdc:ASSET.symUsdc, prec:ASSET.prec};
 setAsset(ASSET.id);   // pinta selector, títulos y carga la posición del activo activo
 restoreLastReport();  // restaura último informe del historial al arrancar
 renderTrades();       // pinta bitácora de rotaciones guardada
